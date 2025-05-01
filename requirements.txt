@@ -1,0 +1,4 @@
+# filepath: /Users/suya/Desktop/Baduanjin/requirements.txt
+Flask>=2.0
+opencv-python
+mediapipe

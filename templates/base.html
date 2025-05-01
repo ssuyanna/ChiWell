@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"> <!-- Changed language to English -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ChiWell: Heritage-Integrated Health Hub{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Include MediaPipe (place here if needed by all pages, otherwise in specific pages) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    {% block head_scripts %}{% endblock %}
+</head>
+<body>
+    <header class="main-header">
+        <nav class="main-nav">
+            <a href="{{ url_for('practice_page') }}" class="logo">ChiWell</a>
+            <ul>
+                <!-- Changed navigation link text to concise English -->
+                <li><a href="{{ url_for('practice_page') }}" class="{{ 'active' if active_page == 'practice' else '' }}">Practice</a></li>
+                <li><a href="{{ url_for('upload_page') }}" class="{{ 'active' if active_page == 'upload' else '' }}">Evaluation</a></li>
+                <li><a href="{{ url_for('herb_identifier_page') }}" class="{{ 'active' if active_page == 'herb_identifier' else '' }}">Herbs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="content-wrapper">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="main-footer">
+        <p>&copy; 2025 ChiWell. All rights reserved.</p>
+    </footer>
+
+    <!-- Common JS or page-specific JS -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    {% block body_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Herb Identification - ChiWell{% endblock %}
+
+{% block content %}
+<div class="page-container herb-identifier-container">
+    <h1>Herb Identification</h1>
+    <p class="description">Upload an image of a medicinal herb to get its identification result.</p>
+
+    <div class="upload-area">
+        <div class="image-preview-wrapper">
+            <img id="imagePreview" src="#" alt="Image Preview" style="display: none; max-width: 100%; max-height: 300px; margin-bottom: 15px; border-radius: var(--border-radius);"/>
+        </div>
+        <label for="herbImageUpload" class="file-label">Select Image File</label>
+        <input type="file" id="herbImageUpload" accept="image/*" class="file-input">
+        <button id="predictBtn" class="button button-primary" disabled>Identify Herb</button>
+    </div>
+
+    <div id="predictionResult" class="prediction-result" style="margin-top: 30px; text-align: center; font-size: 1.2em; min-height: 2em;">
+        <!-- Prediction result will be displayed here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<!-- You can link a dedicated JS file here, or write it directly in script.js -->
+<!-- <script src="{{ url_for('static', filename='js/herb_identifier.js') }}"></script> -->
+{% endblock %}

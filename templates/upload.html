@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Analysis - ChiWell{% endblock %}
+
+{% block content %}
+<div class="page-container upload-container">
+    <h1>Upload Video Analysis</h1>
+    <p class="description">Upload your Baduanjin practice video, and we will provide action analysis and scoring (this feature is under development).</p>
+
+    <div class="upload-form">
+        <label for="videoUpload" class="file-label">Select Video File</label>
+        <input type="file" id="videoUpload" accept="video/*" class="file-input">
+        <button id="uploadBtn" class="button button-primary">Upload & Analyze</button>
+    </div>
+
+    <div id="uploadStatus" class="upload-status"></div>
+
+    <!-- Analysis results can be displayed here in the future -->
+    <div class="analysis-results" style="margin-top: 30px; display: none;">
+        <h2>Analysis Report</h2>
+        <p>Your analysis results will be displayed here.</p>
+        <!-- e.g.: <div id="score"></div> <div id="suggestions"></div> -->
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<!-- If there is specific JS for the upload page, you can include it here -->
+<!-- <script src="{{ url_for('static', filename='js/upload.js') }}"></script> -->
+{% endblock %}
