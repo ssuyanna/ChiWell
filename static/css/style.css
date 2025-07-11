@@ -1,13 +1,29 @@
 :root {
     --primary-color: #007AFF; /* Apple Blue */
+    --primary-color-contrast: #ffffff; /* For text on primary color bg */
+    --primary-color-light: #53a9ff; /* Lighter shade for hovers or accents */
+    --primary-color-translucent: rgba(0, 122, 255, 0.2); /* For focus rings etc. */
+
     --secondary-color: #f2f2f7; /* Light Gray Background */
     --text-color: #1d1d1f; /* Near Black */
     --secondary-text-color: #6e6e73; /* Gray Text */
+    
     --border-color: #d1d1d6;
+    --border-color-light: #e5e5ea; /* Lighter border for internal elements */
+    
     --background-color: #ffffff;
     --header-height: 60px;
-    --border-radius: 12px; /* Rounded corners */
+    --border-radius: 12px; 
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+    /* Added from acupoints.html for consistency */
+    --acupoint-panel-bg: #f8f9fa;
+    --acupoint-detail-bg: #ffffff;
+    --acupoint-active-bg: var(--primary-color);
+    --acupoint-active-text: var(--primary-color-contrast);
+    --acupoint-hover-bg: #e9ecef;
+    --image-placeholder-bg: #e0e0e0;
+    --search-focus-ring: var(--primary-color-translucent);
 }
 
 body {
@@ -339,3 +355,104 @@ h1 {
         padding: 10px 20px; /* Slightly smaller buttons/labels */
     }
 }
+/* static/css/style.css */
+/* ================================== */
+/* ==  悬浮聊天机器人 (Floating Chatbot) == */
+/* ================================== */
+.chatbot-fab{
+    position:fixed;
+    bottom:30px;
+    right:30px;
+    width:60px;
+    height:60px;
+    background-color:var(--primary-color);
+    color:white;
+    border-radius:50%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:1.5em;
+    font-weight:bold;
+    cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);
+    z-index:999;
+    transition:transform .2s ease-in-out}
+.chatbot-fab:hover{transform:scale(1.1)}
+.chatbot-container{position:fixed;
+    bottom:100px;
+    right:30px;
+    width:370px;
+    height:550px;
+    max-height:80vh;
+    background-color:#fff;
+    border-radius:var(--border-radius);
+    box-shadow:0 5px 20px rgba(0,0,0,.25);
+    z-index:1000;display:flex;
+    flex-direction:column;overflow:hidden;
+    transform:translateY(20px) scale(.95);
+    opacity:0;pointer-events:none;
+    transition:opacity .3s ease-in-out,transform .3s ease-in-out}
+.chatbot-container.is-hidden{
+    transform:translateY(20px) scale(.95);
+    opacity:0;pointer-events:none}
+.chatbot-container:not(.is-hidden){
+    transform:translateY(0) scale(1);
+    opacity:1;
+    pointer-events:auto}
+.chatbot-header{display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px 20px;
+    background-color:var(--primary-color);
+    color:white;flex-shrink:0}
+.chatbot-header h3{
+    margin:0;font-size:1.1em}
+#chatbot-close-btn{
+    background:0 0;
+    border:none;
+    color:white;
+    font-size:1.8em;
+    cursor:pointer;
+    padding:0;
+    line-height:1}
+.chat-window{
+    flex-grow:1;
+    padding:20px;
+    overflow-y:auto;
+    background-color:#f9f9f9}
+.chat-message{
+    padding:10px 15px;
+    border-radius:18px;
+    margin-bottom:12px;
+    max-width:85%;
+    line-height:1.5;
+    white-space:pre-wrap}
+.user-message{
+    background-color:var(--primary-color-translucent);
+    color:var(--text-color);
+    margin-left:auto;
+    border-bottom-right-radius:5px}
+.bot-message{
+    background-color:#e9ecef;
+    color:var(--text-color);
+    margin-right:auto;
+    border-bottom-left-radius:5px}
+.chat-form{
+    display:flex;
+    padding:15px;
+    border-top:1px solid var(--border-color);
+    background-color:#fff;
+    flex-shrink:0}
+.chat-form input{
+    flex-grow:1;
+    padding:12px;
+    border:1px solid var(--border-color);
+    border-radius:20px;
+    font-size:1em;
+    margin-right:10px}
+.chat-form input:focus{
+    outline:0;
+    border-color:var(--primary-color)}
+.chat-form button{
+    border-radius:20px;
+    padding:0 20px;
+    font-weight:500}

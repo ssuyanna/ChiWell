@@ -1,33 +1,46 @@
 import os
-import subprocess
 from flask import Flask, render_template, request, jsonify, send_from_directory, url_for, Response
 from werkzeug.utils import secure_filename
 import json
-import io # 用于处理内存中的图片
+import io  # 用于处理内存中的图片
+import uuid  # 用于生成唯一文件名
 
 # --- 中草药识别相关导入 ---
 import torch
 from torchvision import transforms
-# 从 PIL 导入 Image 和 UnidentifiedImageError
 from PIL import Image, UnidentifiedImageError
 import torchvision.models as models
 import torch.nn as nn
 # --- 结束导入 ---
 
+# --- 八段锦动作识别相关导入 ---
+import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from model import LSTMClassifier  # 从 model.py 导入
+
+# --- 结束导入 ---
+from flask import send_file  # 新增导入
+
 UPLOAD_FOLDER = 'uploads'
-HERB_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'herb_images') # 单独存放草药图片
+HERB_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'herb_images')
+ACTION_VIDEO_FOLDER = os.path.join(UPLOAD_FOLDER, 'action_videos')  # 存放上传的动作视频
+ACTION_JSON_FOLDER = os.path.join(UPLOAD_FOLDER, 'action_json')  # 存放提取的姿态JSON
+ACUPOINTS_DATA_FOLDER = 'acupoints_data'  # 存储穴位数据的文件夹
+
 ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'avi', 'wmv'}
-ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'} # 允许的图片类型
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 保持视频大小限制
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-# --- 创建上传目录 ---
-# 使用 os.makedirs(exist_ok=True) 更简洁
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(HERB_IMAGE_FOLDER, exist_ok=True)
-# --- 结束创建目录 ---
+os.makedirs(ACTION_VIDEO_FOLDER, exist_ok=True)
+os.makedirs(ACTION_JSON_FOLDER, exist_ok=True)
+os.makedirs(ACUPOINTS_DATA_FOLDER, exist_ok=True)  # 创建穴位数据文件夹
 
 # --- 中草药识别模型加载 ---
 MEDICINE_MODEL_PATH = 'medicine_model.pth'
@@ -36,129 +49,275 @@ herb_model = None
 herb_class_names = []
 herb_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 herb_transform = None
+os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
+os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
+
 
 def load_herb_model():
     global herb_model, herb_class_names, herb_transform
     print("--- Loading Herb Identification Model ---")
     try:
-        # 检查模型和类别文件是否存在
         if not os.path.exists(MEDICINE_MODEL_PATH):
             raise FileNotFoundError(f"Model file not found: {MEDICINE_MODEL_PATH}")
         if not os.path.exists(CLASS_NAMES_PATH):
             raise FileNotFoundError(f"Class names file not found: {CLASS_NAMES_PATH}")
 
-        # 加载类别名
         with open(CLASS_NAMES_PATH, "r", encoding="utf-8") as f:
             herb_class_names = json.load(f)
-        num_classes = len(herb_class_names)
-        if num_classes == 0:
-             raise ValueError("Class names file is empty or invalid.")
-        print(f"Loaded {num_classes} herb class names.")
+        num_classes_herb = len(herb_class_names)  # Renamed to avoid conflict
+        if num_classes_herb == 0:
+            raise ValueError("Class names file is empty or invalid.")
+        print(f"Loaded {num_classes_herb} herb class names.")
 
-        # 构建模型结构 (确保与训练时一致)
-        herb_model = models.resnet18(weights=None) # 加载结构，不加载预训练权重
-        herb_model.fc = nn.Linear(herb_model.fc.in_features, num_classes)
-        print("Model structure created (ResNet18).")
+        herb_model = models.resnet18(weights=None)
+        herb_model.fc = nn.Linear(herb_model.fc.in_features, num_classes_herb)
+        print("Herb model structure created (ResNet18).")
 
-        # 加载你训练/微调后的模型权重
         herb_model.load_state_dict(torch.load(MEDICINE_MODEL_PATH, map_location=herb_device))
         herb_model = herb_model.to(herb_device)
-        herb_model.eval() # 设置为评估模式
+        herb_model.eval()
         print(f"Herb identification model weights loaded successfully onto {herb_device}.")
 
-        # 定义图像预处理 (!!! 与你的训练代码保持一致 !!!)
         herb_transform = transforms.Compose([
-            transforms.Resize((224, 224)), # 调整图像大小
-            transforms.ToTensor()          # 转换为 Tensor (值范围 [0, 1])
-            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.Resize((224, 224)),
+            transforms.ToTensor()
         ])
-        # 更新日志信息以反映实际的转换
         print("Herb image transform defined (Resize, ToTensor only).")
         print("--- Herb Model Loading Complete ---")
 
     except FileNotFoundError as e:
         print(f"[ERROR] Loading herb model failed: {e}. Herb identification feature will be disabled.")
-        herb_model = None # 标记模型加载失败
+        herb_model = None
     except Exception as e:
-        # 打印更详细的错误信息，包括异常类型
         import traceback
         print(f"[ERROR] An unexpected error occurred during herb model loading: {type(e).__name__} - {e}")
-        print(traceback.format_exc()) # 打印完整的堆栈跟踪
+        print(traceback.format_exc())
         herb_model = None
         print("--- Herb Model Loading Failed ---")
 
 
-# 在应用启动时加载模型
 load_herb_model()
+
+# --- 八段锦动作识别模型加载 ---
+ACTION_MODEL_PATH = "./output/model.pt"  # 你的 LSTM 模型路径
+action_model = None
+action_device = torch.device('cpu')  # LSTM 通常在 CPU 上也很快
+
+# 从 predict.py 借鉴的常量
+ACTION_NUM_CLASSES = 10
+ACTION_MAX_FRAMES = 60
+ACTION_ANGLE_KEYS = [
+    "left_elbow_angle", "right_elbow_angle",
+    "left_knee_angle", "right_knee_angle",
+    "left_hip_angle", "right_hip_angle"
+]
+ACTION_ID_TO_LABEL = {
+    0: "两手托天理三焦", 1: "左右开弓似射雕", 2: "调理脾胃须单举",
+    3: "五劳七伤往后瞧", 4: "摇头摆尾去心火", 5: "两手攀足固肾腰",
+    6: "攒拳怒目增气力", 7: "背后七颠百病消", 8: "预备式", 9: "收势"
+}
+
+
+def load_action_recognition_model():
+    global action_model
+    print("--- Loading Baduanjin Action Recognition Model ---")
+    try:
+        if not os.path.exists(ACTION_MODEL_PATH):
+            raise FileNotFoundError(f"Action recognition model file not found: {ACTION_MODEL_PATH}")
+
+        action_model = LSTMClassifier(input_dim=len(ACTION_ANGLE_KEYS), num_classes=ACTION_NUM_CLASSES)
+        action_model.load_state_dict(torch.load(ACTION_MODEL_PATH, map_location=action_device))
+        action_model.to(action_device)
+        action_model.eval()
+        print(f"Action recognition model loaded successfully onto {action_device}.")
+        print("--- Action Model Loading Complete ---")
+    except FileNotFoundError as e:
+        print(f"[ERROR] Loading action recognition model failed: {e}. Action recognition feature will be disabled.")
+        action_model = None
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] An unexpected error occurred during action model loading: {type(e).__name__} - {e}")
+        print(traceback.format_exc())
+        action_model = None
+        print("--- Action Model Loading Failed ---")
+
+
+load_action_recognition_model()
 # --- 结束模型加载 ---
+# --- 全局变量存储穴位数据 ---
+acupoints_db = {}  # { "经脉显示名": { "穴位显示名": {"id": "meridian_folder/point_folder", "image_filename": "image.jpg", "description": "text"} } }
+acupoint_id_map = {}  # { "meridian_folder/point_folder": {"meridian": "经脉显示名", "point": "穴位显示名"} }
+
+
+def generate_display_name(folder_name, is_meridian=False):
+    """从文件夹名称生成更易读的显示名称。"""
+    # 移除可能存在的前导/尾随空格或特殊字符，尽管os.listdir通常不会产生这些
+    clean_folder_name = folder_name.strip()
+    parts = clean_folder_name.split('_')
+    if not parts:
+        return clean_folder_name
+
+    if is_meridian:
+        chinese_name_parts = [p for p in parts if any('\u4e00' <= char <= '\u9fff' for char in p)]
+        pinyin_parts = [p for p in parts if not any('\u4e00' <= char <= '\u9fff' for char in p)]
+
+        chinese_name = "".join(chinese_name_parts) if chinese_name_parts else " ".join(parts)  # Fallback
+        pinyin_name = "_".join(pinyin_parts)
+
+        if pinyin_name and chinese_name != pinyin_name:  # 避免 "手太阴肺经 (手太阴肺经)"
+            # 确保拼音部分不只是中文部分的重复
+            if not any(p_part in chinese_name for p_part in pinyin_parts):
+                return f"{chinese_name} ({pinyin_name})"
+        return chinese_name
+
+    else:  # 例如 "LU-1_Zhongfu_中府" -> "中府 Zhongfu (LU-1)"
+        code = parts[0]
+        name_elements = []
+        chinese_elements = []
+        for part in parts[1:]:
+            if any('\u4e00' <= char <= '\u9fff' for char in part):
+                chinese_elements.append(part)
+            else:
+                name_elements.append(part)
+
+        display_parts = []
+        if chinese_elements:
+            display_parts.append("".join(chinese_elements))
+        if name_elements:  # 确保英文名在中文名之后，如果都有
+            display_parts.append(" ".join(name_elements).capitalize())
+
+        name_str = " ".join(display_parts)
+        return f"{name_str} ({code})" if name_str else code
+
+
+def load_acupoints_data():
+    global acupoints_db, acupoint_id_map
+    print("--- Loading Acupoints Data ---")
+    acupoints_data_temp = {}
+    id_map_temp = {}
+
+    if not os.path.exists(ACUPOINTS_DATA_FOLDER):
+        print(f"[WARN] Acupoints data folder not found: {ACUPOINTS_DATA_FOLDER}")
+        return
+
+    for meridian_folder_name in sorted(os.listdir(ACUPOINTS_DATA_FOLDER)):
+        meridian_path = os.path.join(ACUPOINTS_DATA_FOLDER, meridian_folder_name)
+        # 确保是目录且不是隐藏文件/文件夹
+        if os.path.isdir(meridian_path) and not meridian_folder_name.startswith('.'):
+            meridian_display_name = generate_display_name(meridian_folder_name, is_meridian=True)
+            acupoints_data_temp[meridian_display_name] = {}
+            print(f"  Loading Meridian: {meridian_folder_name} -> Display: '{meridian_display_name}'")
+
+            for point_folder_name in sorted(os.listdir(meridian_path)):
+                point_path = os.path.join(meridian_path, point_folder_name)
+                if os.path.isdir(point_path) and not point_folder_name.startswith('.'):
+                    point_display_name = generate_display_name(point_folder_name)
+                    # 使用原始文件夹名构建ID，因为这些用于路径查找
+                    point_id = f"{meridian_folder_name}/{point_folder_name}"
+
+                    image_file = None
+                    description_text = "Description not found for this acupoint."  # Default text
+
+                    for item in os.listdir(point_path):
+                        if item.lower().startswith("image.") and item.lower().split('.')[
+                            -1] in ALLOWED_IMAGE_EXTENSIONS:
+                            image_file = item
+                            break
+
+                    desc_file_path = os.path.join(point_path, "text.txt")
+                    if os.path.exists(desc_file_path):
+                        try:
+                            with open(desc_file_path, 'r', encoding='utf-8') as f_desc:
+                                description_text = f_desc.read().strip()
+                                if not description_text:  # Handle empty description file
+                                    description_text = "Description is available but currently empty."
+                        except Exception as e:
+                            print(f"[ERROR] Reading description for {point_id}: {e}")
+                            description_text = "Error reading description file."
+
+                    acupoints_data_temp[meridian_display_name][point_display_name] = {
+                        "id": point_id,  # This ID is crucial for fetching
+                        "image_filename": image_file,
+                        "description": description_text
+                    }
+                    id_map_temp[point_id] = {"meridian": meridian_display_name, "point": point_display_name}
+                    # print(f"    Loaded Acupoint: {point_folder_name} -> '{point_display_name}' (ID: {point_id}, Image: {image_file})")
+
+    acupoints_db = acupoints_data_temp
+    acupoint_id_map = id_map_temp
+    if acupoints_db:
+        print(f"--- Acupoints Data Loading Complete. Found {len(acupoints_db)} meridians. ---")
+        # Optional: Print a sample for debugging
+        # first_meridian_key = next(iter(acupoints_db))
+        # print(f"Sample from '{first_meridian_key}': {json.dumps(list(acupoints_db[first_meridian_key].items())[:2], ensure_ascii=False, indent=2)}")
+    else:
+        print(f"--- Acupoints Data Loading Complete. No data found. ---")
+
+
+# ... (之前的 load_herb_model, load_action_recognition_model) ...
+load_acupoints_data()  # 确保在模型加载后或独立加载
+
+
+# ... (allowed_file 和其他路由) ...
 
 
 def allowed_file(filename, allowed_extensions):
-    """检查文件扩展名是否允许"""
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in allowed_extensions
+        filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
 
 # --- 路由定义 ---
-
 @app.route('/favicon.ico')
 def favicon():
-    """处理浏览器图标请求"""
     return Response(status=204)
+
 
 @app.route('/')
 def index():
-    """主页，重定向到练习页面"""
-    # 确保传递 active_page
+    # 默认页面是练习页
     return render_template('practice.html', active_page='practice')
+
 
 @app.route('/practice')
 def practice_page():
-    """实时跟练页面"""
     return render_template('practice.html', active_page='practice')
+
 
 @app.route('/upload_analysis')
 def upload_page():
-    """上传分析页面"""
     return render_template('upload.html', active_page='upload')
 
-# --- 草药识别页面路由 ---
+
 @app.route('/herb_identifier')
 def herb_identifier_page():
-    """草药识别页面"""
-    # 传递 active_page 以便导航栏高亮
     return render_template('herb_identifier.html', active_page='herb_identifier')
-# --- 结束草药识别页面路由 ---
+
 
 @app.route('/get_standard_data')
 def get_standard_data():
-    """API: 提供标准姿态数据"""
     try:
-        # 确保文件路径正确
         filepath = 'standard_pose_data.json'
         if not os.path.exists(filepath):
-             raise FileNotFoundError(f"Standard pose data file not found at: {filepath}")
+            raise FileNotFoundError(f"Standard pose data file not found at: {filepath}")
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        # 简单的验证，确保数据是列表且不为空
         if not isinstance(data, list) or not data:
-             raise ValueError("Standard pose data is empty or not a list.")
+            raise ValueError("Standard pose data is empty or not a list.")
         return jsonify(data)
-    except FileNotFoundError as e:
-        print(f"[ERROR] /get_standard_data: {e}")
-        return jsonify({"error": "Standard pose data file not found."}), 404
-    except json.JSONDecodeError as e:
-        print(f"[ERROR] /get_standard_data: Invalid JSON format - {e}")
-        return jsonify({"error": "Invalid standard pose data format."}), 500
-    except ValueError as e:
-        print(f"[ERROR] /get_standard_data: Invalid data content - {e}")
-        return jsonify({"error": f"Invalid standard pose data content: {e}"}), 500
     except Exception as e:
-        print(f"[ERROR] /get_standard_data: Unexpected error - {type(e).__name__}: {e}")
-        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+        print(f"[ERROR] /get_standard_data: {type(e).__name__}: {e}")
+        return jsonify({"error": "Failed to load standard data."}), 500
 
-@app.route('/upload', methods=['POST'])
-def upload_video():
-    """API: 处理视频上传"""
+
+# --- API: 处理动作视频上传、姿态提取和预测 ---
+# =============================================================================
+# 请复制下面的完整函数，并替换掉 app.py 中旧的 predict_action_route 函数
+# =============================================================================
+# =============================================================================
+# 请复制下面的完整函数，并替换掉 app.py 中旧的 predict_action_route 函数
+# =============================================================================
+@app.route('/predict_action', methods=['POST'])
+def predict_action_route():
     if 'video' not in request.files:
         return jsonify({"error": "No video file part"}), 400
     file = request.files['video']
@@ -166,30 +325,101 @@ def upload_video():
         return jsonify({"error": "No selected file"}), 400
 
     if file and allowed_file(file.filename, ALLOWED_VIDEO_EXTENSIONS):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         try:
-            file.save(filepath)
-            print(f"Video saved to: {filepath}")
-            # 这里应该触发实际的后台分析任务
-            return jsonify({"message": f"Video '{filename}' uploaded successfully. Backend analysis has started (simulation)."}), 200
+            # 1. 保存用户上传的视频
+            unique_id = str(uuid.uuid4())
+            original_filename, ext = os.path.splitext(file.filename)
+            secure_name = secure_filename(original_filename)
+            video_filename = f"{secure_name}_{unique_id}{ext}"
+            video_path = os.path.join(ACTION_VIDEO_FOLDER, video_filename)
+            file.save(video_path)
+            print(f"User video saved to: {video_path}")
+
+            # 2. 配置大语言模型
+            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-2.5-pro",
+                google_api_key=os.getenv("GEMINI_API_KEY"),
+                temperature=0.4,  # 可以稍微提高一点温度，让语言生动些
+            )
+
+            # =====================================================================================
+            # 这是最终版本的 Prompt，请用它完整替换 app.py 中已有的 prompt 变量
+            # =====================================================================================
+            prompt = PromptTemplate.from_template("""
+            你是一位顶级的运动康复与健康顾问以及经验老道的中医，擅长从生物力学结合中医的角度分析动作，并给出精准、易懂的指导。
+
+            **核心指令 (最重要):**
+            你的任务是生成一份关于用户动作的改进建议报告。在你的报告中，**绝对不要尝试识别或提及用户正在练习的八段锦动作的具体名称**。你的所有建议都应聚焦于身体姿态、动作质量和改进方法，而不是动作的命名。
+
+            **分析流程:**
+            1.  **观察用户动作**: 仔细观看【用户练习视频】中的每一个细节。
+            2.  **寻找参考**: 在【标准动作视频】中找到与用户动作形态最相似的片段作为你的内在分析参考。
+            3.  **生成通用性建议**: 基于上述的内在比较，从以下方面生成一份**不提及具体动作名称**的通用性评估报告：
+                - **身体姿态与排列**: 用户的脊柱是否中立？头部、肩部、髋部的位置关系是否理想？是否存在不必要的紧张？
+                - **动作质量**: 动作的幅度是否充分？发力是否流畅？整个动作的节奏控制得如何？
+                - **核心改进建议**: 给出1-3条最关键、最普适的改进点。例如：“建议在向上伸展时，更专注于核心收紧，以保护腰部”或“你的下蹲幅度可以再稍大一些，同时确保膝盖与脚尖方向一致”。
+
+            **输入路径:**
+            - 标准动作视频: {standard_path}
+            - 用户练习视频: {user_path}
+
+            **输出要求 (必须严格遵守):**
+            - **返回一个单一的、连续的文本字符串。**
+            - **不要使用JSON或任何代码块格式。**
+            - 报告中**严禁出现任何八段锦招式名称**（如“两手托天理三焦”等）。
+            - 报告包含两部分：先是完整的中文报告，然后是完整的英文报告。
+            - 使用 "--- English Report ---" 作为中英文报告的分隔符。
+
+            **输出格式示例:**
+
+            【中文部分】
+            你好！这是为你准备的动作练习报告。通过分析你的动作，我们发现了一些可以让你做得更好的地方：
+
+            1.  **关于身体姿态**: 我们注意到你的肩部在手臂上举时有轻微的耸起。下次可以尝试有意识地让肩膀下沉，这能更好地打开胸腔。
+            2.  **核心改进建议**: 在整个动作过程中，请更专注于保持核心区域的稳定，这会让你下盘更稳，发力也更顺畅。
+
+            --- English Report ---
+
+            Hello! Here is the practice report for your exercise. After analyzing your movements, we found some areas for improvement:
+
+            1.  **Regarding Posture**: We noticed a slight shrugging of the shoulders as you raised your arms. Next time, try to consciously keep your shoulders down to better open up your chest.
+            2.  **Core Improvement Tip**: Throughout the movement, please focus more on maintaining a stable core. This will give you better balance and smoother power generation.
+            """)
+            # 4. [已更新] 构建调用链，解析器改回 StrOutputParser
+            # 因为我们现在需要的是一个包含中英文的完整字符串
+            parser = StrOutputParser()
+            chain = prompt | llm | parser
+
+            # 5. [已更新] 执行调用链，返回的结果现在是一个单一的字符串
+            report = chain.invoke({
+                "standard_path": os.path.abspath("static/videos/baduanjin.mp4"),
+                "user_path": os.path.abspath(video_path)
+            })
+
+            # 6. 直接返回模型生成的完整双语报告字符串
+            return jsonify({
+                "report": report,  # report里现在包含了中英文两部分
+                "message": "动作分析成功!"
+            }), 200
+
         except Exception as e:
-            print(f"[ERROR] Error saving video file '{filename}': {e}")
-            return jsonify({"error": "Failed to save video file."}), 500
+            import traceback
+            print(f"[ERROR] Gemini 分析失败: {e}")
+            print(traceback.format_exc())
+            return jsonify({"error": "Gemini 分析过程中发生错误"}), 500
+
     else:
-        # 提供更具体的文件类型错误信息
-        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'N/A'
-        print(f"Upload rejected: Disallowed video file type - {file_ext}")
-        return jsonify({"error": f"Disallowed video file types: .{file_ext}"}), 400
+        return jsonify({"error": "不支持的视频格式"}), 400
+
 
 # --- 处理草药图片上传和预测的 API ---
 @app.route('/predict_herb', methods=['POST'])
 def predict_herb():
-    """API: 处理草药图片上传和预测"""
-    # 检查模型是否成功加载
     if herb_model is None or herb_transform is None or not herb_class_names:
         print("[ERROR] /predict_herb: Attempted prediction while model is not loaded.")
-        return jsonify({"error": "Herb recognition model is not loaded or failed to load, function is not available."}), 503 # 503 Service Unavailable
+        return jsonify(
+            {"error": "Herb recognition model is not loaded or failed to load, function is not available."}), 503
 
     if 'image' not in request.files:
         return jsonify({"error": "No image file part"}), 400
@@ -199,68 +429,167 @@ def predict_herb():
 
     if file and allowed_file(file.filename, ALLOWED_IMAGE_EXTENSIONS):
         try:
-            # 直接在内存中处理图片
             img_bytes = file.read()
-            # 使用 Pillow 打开图像数据
-            img = Image.open(io.BytesIO(img_bytes)).convert('RGB') # 确保是 RGB 格式
+            img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+            input_tensor = herb_transform(img).unsqueeze(0).to(herb_device)
 
-            # --- (可选) 保存上传的图片 ---
-            # filename_secure = secure_filename(file.filename)
-            # save_path = os.path.join(HERB_IMAGE_FOLDER, filename_secure)
-            # try:
-            #     with open(save_path, 'wb') as f_save:
-            #          f_save.write(img_bytes)
-            #     print(f"Herb image saved to: {save_path}")
-            # except Exception as save_err:
-            #     print(f"[WARN] Could not save uploaded herb image '{filename_secure}': {save_err}")
-            # --- 结束保存 ---
-
-            # 图像预处理 (现在与训练代码一致)
-            input_tensor = herb_transform(img).unsqueeze(0).to(herb_device) # 添加 batch 维度并移动到设备
-
-            # 执行预测
-            with torch.no_grad(): # 关闭梯度计算以节省内存和加速
+            with torch.no_grad():
                 output = herb_model(input_tensor)
-                probabilities = torch.softmax(output, dim=1) # 计算概率
-                confidence, predicted_idx = torch.max(probabilities, 1) # 获取最高概率及其索引
+                probabilities = torch.softmax(output, dim=1)
+                confidence, predicted_idx = torch.max(probabilities, 1)
 
-            predicted_class = herb_class_names[predicted_idx.item()] # 获取预测的类别名称
-            confidence_score = confidence.item() * 100 # 转换为百分比
+            predicted_class = herb_class_names[predicted_idx.item()]
 
-            
-            print(f"Predicted herb: {predicted_class} with confidence: {confidence_score:.2f}% for file: {file.filename}")
-            
-            # 返回预测结果和置信度
+            print(f"Predicted herb: {predicted_class} for file: {file.filename}")
             return jsonify({
                 "prediction": predicted_class,
-                # "confidence": f"{confidence_score:.2f}%"
             }), 200
-
         except UnidentifiedImageError:
-             # Pillow 无法识别图像格式
-             print(f"[ERROR] /predict_herb: Cannot identify image file format for {file.filename}")
-             return jsonify({"error": "Unrecognised image file format."}), 400
+            print(f"[ERROR] /predict_herb: Cannot identify image file format for {file.filename}")
+            return jsonify({"error": "Unrecognised image file format."}), 400
         except Exception as e:
-            # 捕获其他所有潜在错误
             import traceback
-            print(f"[ERROR] /predict_herb: Error processing image or predicting for {file.filename}: {type(e).__name__} - {e}")
+            print(
+                f"[ERROR] /predict_herb: Error processing image or predicting for {file.filename}: {type(e).__name__} - {e}")
             print(traceback.format_exc())
             return jsonify({"error": "An internal error occurred while processing an image or prediction."}), 500
     else:
-        # 提供更具体的文件类型错误信息
         file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'N/A'
         print(f"Upload rejected: Disallowed image file type - {file_ext}")
         return jsonify({"error": f"Disallowed image file types: .{file_ext}"}), 400
-# --- 结束 API ---
 
 
-if __name__ == '__main__':
-    print("Starting Flask application...")
-    # host='0.0.0.0' 允许局域网访问
-    # debug=True 会在代码更改时自动重载，并提供更详细的错误页面
-    # use_reloader=False 可以防止模型被加载两次（在 debug 模式下）
-    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)
-    # 注意：如果 use_reloader=False 导致其他自动重载功能失效，
-    # 你可能需要手动重启服务器来看代码更改。
-    # 或者，将模型加载逻辑移到一个只执行一次的地方（例如使用 Flask 的 before_first_request 装饰器，但在较新版本中已弃用，推荐使用启动脚本或 WSGI 服务器配置）。
-    # 对于简单的开发，use_reloader=False 通常是加载模型最直接的方式。
+# --- 新增穴位查询相关路由 ---
+
+@app.route('/acupoints')
+def acupoints_page():
+    return render_template('acupoints.html', active_page='acupoints', meridians_data=acupoints_db)
+
+
+@app.route('/acupoint_data/<path:point_id>')
+def get_acupoint_data(point_id):
+    # print(f"API: Request for acupoint_data with ID: '{point_id}'") # Debugging
+    # print(f"API: Current acupoint_id_map keys: {list(acupoint_id_map.keys())[:5]}") # Debugging
+    if point_id in acupoint_id_map:
+        meridian_display_name = acupoint_id_map[point_id]["meridian"]
+        point_display_name = acupoint_id_map[point_id]["point"]
+        data = acupoints_db.get(meridian_display_name, {}).get(point_display_name)
+        if data:
+            image_url = None
+            if data.get("image_filename"):
+                # Ensure point_id for url_for is the same used in the route definition
+                image_url = url_for('get_acupoint_image', point_id=data["id"])  # Use the stored ID
+
+            # print(f"API: Found data for {point_id}: Name: {point_display_name}, Image URL: {image_url}") # Debugging
+            return jsonify({
+                "name": point_display_name,  # Use display name for consistency
+                "meridian": meridian_display_name,  # Use display name
+                "description": data.get("description", "No description available."),
+                "image_url": image_url
+            })
+        else:
+            # print(f"API: Data not found in acupoints_db for {meridian_display_name} / {point_display_name}") # Debugging
+            return jsonify({"error": f"Acupoint data details not found for ID {point_id} after map lookup."}), 404
+    # print(f"API: Point ID '{point_id}' not found in acupoint_id_map.") # Debugging
+    return jsonify({"error": f"Acupoint ID '{point_id}' not found."}), 404
+
+
+@app.route('/acupoint_image/<path:point_id>')
+def get_acupoint_image(point_id):
+    # print(f"API: Request for acupoint_image with ID: '{point_id}'") # Debugging
+    if point_id in acupoint_id_map:
+        # The point_id IS "meridian_folder/point_folder"
+        meridian_folder, point_folder = point_id.split('/', 1)
+
+        # Retrieve display names to access acupoints_db, then get the actual image_filename
+        meridian_display_name = acupoint_id_map[point_id]["meridian"]
+        point_display_name = acupoint_id_map[point_id]["point"]
+
+        image_filename = acupoints_db.get(meridian_display_name, {}).get(point_display_name, {}).get("image_filename")
+
+        if image_filename:
+            # Construct path using original folder names (which are in point_id)
+            image_path = os.path.join(ACUPOINTS_DATA_FOLDER, meridian_folder, point_folder, image_filename)
+            # print(f"API: Attempting to send image from path: {image_path}") # Debugging
+            if os.path.exists(image_path):
+                return send_file(image_path)
+            else:
+                # print(f"API: Image file not found at path: {image_path}") # Debugging
+                return jsonify({"error": "Image file physically not found on server."}), 404
+        else:
+            # print(f"API: No image_filename recorded for point ID '{point_id}'") # Debugging
+            return jsonify({"error": "No image filename associated with this acupoint."}), 404
+    # print(f"API: Point ID '{point_id}' not found in map for image request.") # Debugging
+    return jsonify({"error": "Acupoint ID not found for image."}), 404
+
+
+# --- 更新导航栏的 active_page 传递 ---
+# 第一个 @app.route('/') 定义已经存在于大约第 231 行，所以下面的重复定义被移除了。
+# @app.route('/')
+# def index():
+#     # 默认页面可以是练习页或穴位查询页，这里假设是练习页
+#     return render_template('practice.html', active_page='practice') # 或者 'acupoints'
+
+# 确保其他页面路由也传递正确的 active_page (这些看起来是注释掉的示例，可以保持原样或根据需要启用)
+# @app.route('/practice')
+# def practice_page():
+#     return render_template('practice.html', active_page='practice')
+
+# @app.route('/upload_analysis')
+# def upload_page():
+#     return render_template('upload.html', active_page='upload')
+
+# @app.route('/herb_identifier')
+# def herb_identifier_page():
+#     return render_template('herb_identifier.html', active_page='herb_identifier')
+
+# [新增✨] 全新的、纯 API 调用的聊天机器人接口
+@app.route('/ask_chatbot', methods=['POST'])
+def ask_chatbot():
+    """
+    处理来自前端悬浮聊天窗口的请求。
+    不使用 RAG，直接调用 Gemini API。
+    """
+    # 1. 从前端请求中获取用户的问题
+    data = request.get_json()
+    question = data.get("question")
+    if not question:
+        return jsonify({"error": "问题不能为空"}), 400
+
+    try:
+        # 2. 初始化 Gemini 2.5 Flash 模型
+        # 使用你指定的最新模型
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=os.getenv("GEMINI_API_KEY"),
+            temperature=0.6, # 可以设置一个适中的温度，让回答既专业又带一些人情味
+            convert_system_message_to_human=True
+        )
+
+        # 3. 创建一个简单的 Prompt，定义 AI 的角色和任务
+        prompt = PromptTemplate.from_template("""
+你是一位精通中医养生智慧、态度友善的健康助手。请直接回答用户提出的问题。请用清晰、易懂、鼓励性的语言进行交流。
+
+用户问题: {question}
+
+你的回答:
+""")
+
+        # 4. 构建并执行最简单的调用链: Prompt -> LLM -> Parser
+        chain = prompt | llm | StrOutputParser()
+        # #invoke 的作用是执行这个调用链，将输入（问题）传递进去，获取最终输出
+        answer = chain.invoke({"question": question})
+
+        # 5. 将 AI 的回答以 JSON 格式返回给前端
+        return jsonify({"answer": answer})
+
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Chatbot API failed: {e}")
+        print(traceback.format_exc())
+        return jsonify({"error": "调用AI服务时发生错误。"}), 500
+
+
+#if __name__ == '__main__':
+#    print("Starting Flask application...")
+#    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)
