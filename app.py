@@ -23,7 +23,8 @@ from model import LSTMClassifier  # 从 model.py 导入
 # --- 结束导入 ---
 from flask import send_file  # 新增导入
 
-UPLOAD_FOLDER = 'uploads'
+#UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = '/tmp/uploads'
 HERB_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'herb_images')
 ACTION_VIDEO_FOLDER = os.path.join(UPLOAD_FOLDER, 'action_videos')  # 存放上传的动作视频
 ACTION_JSON_FOLDER = os.path.join(UPLOAD_FOLDER, 'action_json')  # 存放提取的姿态JSON
