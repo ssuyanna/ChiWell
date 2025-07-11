@@ -1,4 +1,3 @@
-// filepath: /Users/suya/Desktop/Baduanjin_711/README.md
 ---
 title: ChiWell
 emoji: 🍃
@@ -8,6 +7,6 @@ sdk: docker
 pinned: false
 ---
 
-# ChiWell - Ba Duan Jin and Herb Identification App
+# ChiWell
 
-This is a web application that combines Ba Duan Jin posture correction and herb identification functions.
+This is a TCM health hub that combines Ba Duan Jin posture correction, herbal medicine identification and acupoint query functions. Here you will get personalized TCM health exercise suggestions and analysis.
