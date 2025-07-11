@@ -1,0 +1,9 @@
+# filepath: /Users/suya/Desktop/Baduanjin_711/requirements.txt
+flask
+werkzeug
+torch
+torchvision
+Pillow
+google-generativeai
+langchain-google-genai
+gunicorn

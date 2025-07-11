@@ -1,0 +1,499 @@
+{# filepath: /Users/suya/Desktop/Baduanjin/templates/acupoints.html #}
+{% extends "base.html" %}
+
+{% block title %}Acupoint Atlas - ChiWell{% endblock %}
+
+{% block head_styles %}
+<style>
+    :root {
+        --acupoint-panel-bg: #f8f9fa; /* Lighter gray for side panel */
+        --acupoint-detail-bg: #ffffff;
+        --acupoint-active-bg: var(--primary-color);
+        --acupoint-active-text: #ffffff;
+        --acupoint-hover-bg: #e9ecef;
+        --image-placeholder-bg: #e0e0e0;
+        --search-focus-ring: rgba(0, 122, 255, 0.25); /* var(--primary-color-translucent) */
+    }
+
+    .acupoints-page-container h1 {
+        margin-bottom: 15px; /* Reduced margin */
+    }
+    .acupoints-page-container .description {
+        margin-bottom: 25px;
+    }
+
+    .acupoints-container {
+        display: flex;
+        gap: 25px; /* Slightly reduced gap */
+        margin-top: 10px;
+    }
+
+    .meridian-list-panel {
+        flex: 0 0 300px; /* Slightly narrower */
+        background-color: var(--acupoint-panel-bg);
+        padding: 20px;
+        border-radius: var(--border-radius);
+        height: calc(100vh - var(--header-height) - 100px); /* Adjust as needed */
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .meridian-list-panel h2 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 1.3em; /* Slightly smaller */
+        color: var(--text-color); /* Darker for better contrast on light bg */
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 8px;
+    }
+
+    #acupointSearch {
+        width: 100%;
+        padding: 10px 12px;
+        margin-bottom: 15px;
+        border: 1px solid var(--border-color);
+        border-radius: calc(var(--border-radius) - 6px); /* Smaller radius for input */
+        font-size: 0.95em;
+        box-sizing: border-box;
+    }
+    #acupointSearch:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px var(--search-focus-ring);
+    }
+
+    .meridian-list-panel .meridian-group {
+        margin-bottom: 5px; /* Reduced margin for tighter packing */
+    }
+
+    /* NEW Styles for Meridian Header (toggle) */
+    .meridian-list-panel .meridian-header {
+        display: flex;
+        align-items: center;
+        padding: 6px 0; /* Adjust padding */
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 1.05em;
+        color: var(--text-color);
+        transition: background-color 0.15s ease;
+        border-radius: calc(var(--border-radius) - 8px); /* Small radius for header */
+    }
+    .meridian-list-panel .meridian-header:hover {
+        background-color: var(--acupoint-hover-bg);
+    }
+    .meridian-list-panel .meridian-toggle-icon {
+        margin-right: 8px;
+        margin-left: 5px; /* Indent icon slightly */
+        font-size: 0.8em; /* Smaller icon */
+        width: 10px; /* Allocate space for icon */
+        display: inline-block;
+        text-align: center;
+        transition: transform 0.2s ease-in-out;
+    }
+    .meridian-list-panel .meridian-header.expanded .meridian-toggle-icon {
+        transform: rotate(90deg);
+    }
+    .meridian-list-panel .meridian-name-text {
+        flex-grow: 1;
+    }
+
+
+    .meridian-list-panel ul.acupoint-links {
+        list-style: none;
+        padding-left: 25px; /* Increased indent for acupoints under icon */
+        margin: 0;
+        overflow: hidden; /* For smooth transition with max-height */
+        max-height: 0; /* Initially collapsed */
+        transition: max-height 0.3s ease-out; /* Smooth collapse/expand */
+    }
+    .meridian-list-panel ul.acupoint-links.expanded {
+        max-height: 1000px; /* Large enough value for content to show, adjust if necessary */
+        /* Consider a more dynamic max-height if lists can be extremely long */
+        transition: max-height 0.3s ease-in;
+    }
+
+
+    .meridian-list-panel ul.acupoint-links li a {
+        display: block;
+        padding: 7px 10px; /* Adjusted padding */
+        text-decoration: none;
+        color: var(--secondary-text-color);
+        font-size: 0.9em;
+        transition: color 0.15s ease, background-color 0.15s ease;
+        border-radius: calc(var(--border-radius) - 6px);
+        margin-bottom: 2px; /* Tighter packing */
+    }
+
+    .meridian-list-panel ul.acupoint-links li a:hover {
+        color: var(--primary-color);
+        background-color: var(--acupoint-hover-bg);
+    }
+    .meridian-list-panel ul.acupoint-links li a.active-acupoint {
+        color: var(--acupoint-active-text);
+        background-color: var(--acupoint-active-bg);
+        font-weight: 500;
+    }
+
+    .acupoint-details-panel {
+        flex-grow: 1;
+        padding: 25px 30px; /* More horizontal padding */
+        background-color: var(--acupoint-detail-bg);
+        border-radius: var(--border-radius);
+        border: 1px solid var(--border-color);
+        min-height: 450px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        display: flex; /* For centering initial message */
+        flex-direction: column; /* Stack content vertically */
+    }
+    
+    .initial-message, .loading-message, .error-message {
+        text-align: center;
+        color: var(--secondary-text-color);
+        font-size: 1.1em;
+        margin: auto; /* Vertically and horizontally center */
+        padding: 20px;
+    }
+    .error-message {
+        color: #dc3545; /* Bootstrap danger color */
+    }
+
+
+    #acupointDetailContent {
+        opacity: 0;
+        transform: translateY(5px);
+        transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out;
+    }
+    #acupointDetailContent.loaded {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    #acupointDetailContent.hidden-by-js { 
+        display: none !important;
+    }
+
+
+    .acupoint-details-panel h3#acupointNameDisplay {
+        margin-top: 0;
+        font-size: 2em; 
+        color: var(--text-color); 
+        margin-bottom: 5px;
+    }
+    .acupoint-details-panel .meridian-affiliation#acupointMeridianDisplay {
+        font-size: 0.95em;
+        color: var(--secondary-text-color);
+        margin-bottom: 20px;
+        font-style: normal; 
+    }
+
+    .image-container { 
+        width: 100%;
+        max-width: 400px; 
+        margin: 0 auto 25px auto; 
+        background-color: var(--image-placeholder-bg);
+        border-radius: calc(var(--border-radius) - 4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 200px; 
+        border: 1px solid var(--border-color-light);
+        overflow: hidden; 
+    }
+    .acupoint-details-panel img#acupointImage {
+        max-width: 100%;
+        height: auto;
+        max-height: 380px;
+        border-radius: calc(var(--border-radius) - 4px); 
+        display: block; 
+    }
+    .acupoint-details-panel img#acupointImage.hidden {
+        display: none; 
+    }
+    .image-container .image-not-available {
+        color: var(--secondary-text-color);
+        font-size: 0.9em;
+    }
+
+
+    .acupoint-details-panel .description-heading { 
+        margin-top: 15px;
+        margin-bottom: 8px;
+        font-size: 1.15em;
+        color: var(--text-color);
+        font-weight: 500;
+    }
+    .acupoint-details-panel p#acupointDescription {
+        line-height: 1.7;
+        white-space: pre-wrap;
+        font-size: 1em;
+        color: var(--text-color); 
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 800px) {
+        .acupoints-container {
+            flex-direction: column;
+        }
+        .meridian-list-panel {
+            flex: 1 1 auto; 
+            height: auto; 
+            max-height: 40vh;
+            margin-bottom: 20px;
+        }
+        .acupoint-details-panel {
+            min-height: 350px;
+        }
+        .acupoint-details-panel h3#acupointNameDisplay {
+            font-size: 1.7em;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container acupoints-page-container">
+    <h1>Acupoint Atlas</h1>
+    <p class="description">Explore meridians and acupoints. Click on an acupoint to view its details, image, and description. Click on a meridian name to expand or collapse its acupoints.</p>
+
+    <div class="acupoints-container">
+        <div class="meridian-list-panel">
+            <h2>Atlas Navigation</h2>
+            <input type="text" id="acupointSearch" placeholder="Search (e.g., 中府, LU-1, fei)...">
+            {% if meridians_data %}
+                {% for meridian_name, points in meridians_data.items()|sort %}
+                <div class="meridian-group" data-meridian-name="{{ meridian_name }}">
+                    {# MODIFIED: Meridian name is now a clickable header with an icon #}
+                    <div class="meridian-header">
+                        <span class="meridian-toggle-icon">►</span> {# Collapsed icon by default #}
+                        <span class="meridian-name-text">{{ meridian_name }}</span>
+                    </div>
+                    {# MODIFIED: Acupoint list is initially collapsed (max-height: 0 via CSS) #}
+                    <ul class="acupoint-links"> {# Removed 'collapsed' class, will use max-height #}
+                        {% for point_name, point_data in points.items()|sort %}
+                        <li>
+                            <a href="#" data-point-id="{{ point_data.id if point_data and point_data.id else 'error-no-id-' ~ loop.index }}" data-point-name="{{ point_name }}">{{ point_name }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="error-message" style="text-align:left; margin: 10px 0;">No acupoint data loaded. Please check server configuration.</p>
+            {% endif %}
+        </div>
+
+        <div class="acupoint-details-panel">
+            <div id="messageArea"> 
+                <p class="initial-message">Please select an acupoint from the atlas navigation.</p>
+            </div>
+            <div id="acupointDetailContent" class="hidden-by-js"> 
+                <h3 id="acupointNameDisplay"></h3>
+                <p class="meridian-affiliation" id="acupointMeridianDisplay"></p>
+                <div class="image-container">
+                    <img src="#" alt="Acupoint Image" id="acupointImage" class="hidden">
+                    <span class="image-not-available" style="display:none;">Image not available</span>
+                </div>
+                <h4 class="description-heading">Description:</h4>
+                <p id="acupointDescription"></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("SCRIPT: Acupoints Atlas DOM fully loaded.");
+
+    const acupointLinks = document.querySelectorAll('.acupoint-links a');
+    const acupointNameDisplay = document.getElementById('acupointNameDisplay');
+    const acupointMeridianDisplay = document.getElementById('acupointMeridianDisplay');
+    const acupointImage = document.getElementById('acupointImage');
+    const acupointImageContainer = acupointImage.parentElement; 
+    const imageNotAvailableText = acupointImageContainer.querySelector('.image-not-available');
+    const acupointDescription = document.getElementById('acupointDescription');
+    const acupointSearchInput = document.getElementById('acupointSearch');
+    const meridianGroups = document.querySelectorAll('.meridian-list-panel .meridian-group');
+    
+    const messageArea = document.getElementById('messageArea');
+    const acupointDetailContent = document.getElementById('acupointDetailContent');
+
+    // Helper to show messages in the messageArea
+    function showUserMessage(type, text) {
+        messageArea.innerHTML = `<p class="${type}-message">${text}</p>`;
+        messageArea.style.display = 'block';
+        acupointDetailContent.classList.remove('loaded');
+        acupointDetailContent.classList.add('hidden-by-js');
+    }
+    
+    function hideUserMessage() {
+        messageArea.style.display = 'none';
+        acupointDetailContent.classList.remove('hidden-by-js');
+    }
+
+    if (!acupointNameDisplay || !acupointMeridianDisplay || !acupointImage || !acupointDescription ||
+        !acupointSearchInput || !acupointDetailContent || !messageArea || !acupointImageContainer || !imageNotAvailableText) {
+        console.error("SCRIPT ERROR: One or more critical UI elements for acupoint details are missing!");
+        showUserMessage('error', "Page Error: UI components missing. Please contact support or refresh.");
+        return; 
+    }
+    
+    console.log(`SCRIPT: Found ${acupointLinks.length} acupoint links.`);
+    let currentActiveLink = null;
+
+    async function displayAcupointDetails(pointId) {
+        if (!pointId || pointId.startsWith('error-no-id')) {
+            console.warn("SCRIPT: Invalid or missing pointId:", pointId);
+            showUserMessage('error', 'Invalid acupoint selection. Please try another.');
+            return;
+        }
+
+        console.log("SCRIPT: Fetching details for pointId:", pointId);
+        showUserMessage('loading', 'Loading acupoint details...'); 
+
+        const fetchURL = `/acupoint_data/${encodeURIComponent(pointId)}`;
+        console.log("SCRIPT: Fetch URL:", fetchURL);
+
+        try {
+            const response = await fetch(fetchURL);
+            console.log("SCRIPT: Fetch response status:", response.status, "for", fetchURL);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
+                throw new Error(errorData.error || `Failed to load data. Status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log("SCRIPT: Received data:", data);
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            hideUserMessage(); 
+            acupointDetailContent.classList.remove('loaded'); 
+
+            acupointNameDisplay.textContent = data.name || 'N/A';
+            acupointMeridianDisplay.textContent = data.meridian ? `Belongs to: ${data.meridian}` : '';
+            acupointDescription.textContent = data.description || 'No description provided.';
+
+            if (data.image_url) {
+                acupointImage.src = data.image_url;
+                acupointImage.alt = `${data.name || 'Acupoint'} Image`;
+                acupointImage.classList.remove('hidden');
+                imageNotAvailableText.style.display = 'none';
+                acupointImage.onerror = () => {
+                    console.error("SCRIPT: Failed to load image:", data.image_url);
+                    acupointImage.classList.add('hidden');
+                    imageNotAvailableText.textContent = 'Image failed to load.';
+                    imageNotAvailableText.style.display = 'block';
+                };
+                acupointImage.onload = () => { 
+                     imageNotAvailableText.style.display = 'none';
+                }
+            } else {
+                acupointImage.classList.add('hidden');
+                acupointImage.src = '#'; 
+                imageNotAvailableText.textContent = 'Image not available for this point.';
+                imageNotAvailableText.style.display = 'block';
+            }
+            
+            setTimeout(() => acupointDetailContent.classList.add('loaded'), 20);
+
+        } catch (error) {
+            console.error('SCRIPT ERROR: Fetching or processing acupoint details failed:', error);
+            showUserMessage('error', `Could not load details: ${error.message}`);
+        }
+    }
+
+    acupointLinks.forEach(link => {
+        link.addEventListener('click', function(event) {
+            event.preventDefault();
+            const pointId = this.dataset.pointId;
+            console.log("SCRIPT: Link clicked, pointId:", pointId, "Name:", this.dataset.pointName);
+
+            if (currentActiveLink) {
+                currentActiveLink.classList.remove('active-acupoint');
+            }
+            this.classList.add('active-acupoint');
+            currentActiveLink = this;
+
+            displayAcupointDetails(pointId);
+        });
+    });
+
+    // --- NEW: Meridian Toggle Functionality ---
+    const meridianHeaders = document.querySelectorAll('.meridian-list-panel .meridian-header');
+    meridianHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            this.classList.toggle('expanded'); // For icon rotation via CSS
+            const icon = this.querySelector('.meridian-toggle-icon');
+            const acupointList = this.nextElementSibling; // The UL is the next sibling
+
+            if (acupointList && acupointList.classList.contains('acupoint-links')) {
+                acupointList.classList.toggle('expanded'); // Toggle class for max-height transition
+                if (icon) { // Update icon text
+                    icon.textContent = acupointList.classList.contains('expanded') ? '▼' : '►';
+                }
+            }
+        });
+    });
+
+
+    if (acupointSearchInput) {
+        acupointSearchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            meridianGroups.forEach(group => {
+                const header = group.querySelector('.meridian-header');
+                const acupointList = group.querySelector('.acupoint-links');
+                const icon = header ? header.querySelector('.meridian-toggle-icon') : null;
+
+                if (!header || !acupointList) return;
+
+                let groupContainsMatch = false;
+                const pointLinksInGroup = group.querySelectorAll('.acupoint-links li');
+                
+                pointLinksInGroup.forEach(li => {
+                    const link = li.querySelector('a');
+                    if (link) {
+                        const pointName = (link.dataset.pointName || "").toLowerCase();
+                        const pointIdForSearch = (link.dataset.pointId || "").toLowerCase(); 
+                        const meridianNameForSearch = (group.dataset.meridianName || "").toLowerCase();
+
+                        const match = pointName.includes(searchTerm) || 
+                                      pointIdForSearch.replace(/\//g, '_').includes(searchTerm.replace(/\s+/g, '_')) ||
+                                      meridianNameForSearch.includes(searchTerm);
+                        
+                        li.style.display = match ? '' : 'none';
+                        if (match) groupContainsMatch = true;
+                    }
+                });
+
+                if (searchTerm === "") { // If search is cleared
+                    group.style.display = ''; // Show all groups
+                    pointLinksInGroup.forEach(li => li.style.display = ''); // Show all points in the group
+                    // Do NOT automatically collapse/expand, respect user's manual toggle state
+                } else { // If there is a search term
+                    if (groupContainsMatch) {
+                        group.style.display = '';
+                        // Expand the group if it contains a match and is not already expanded
+                        if (!acupointList.classList.contains('expanded')) {
+                            header.classList.add('expanded');
+                            acupointList.classList.add('expanded');
+                            if (icon) icon.textContent = '▼';
+                        }
+                    } else {
+                        group.style.display = 'none';
+                    }
+                }
+            });
+        });
+    }
+
+    showUserMessage('initial', 'Please select an acupoint from the atlas navigation.');
+    console.log("SCRIPT: Acupoints Atlas JS setup complete.");
+});
+</script>
+{% endblock %}

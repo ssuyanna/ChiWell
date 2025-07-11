@@ -1,0 +1,458 @@
+:root {
+    --primary-color: #007AFF; /* Apple Blue */
+    --primary-color-contrast: #ffffff; /* For text on primary color bg */
+    --primary-color-light: #53a9ff; /* Lighter shade for hovers or accents */
+    --primary-color-translucent: rgba(0, 122, 255, 0.2); /* For focus rings etc. */
+
+    --secondary-color: #f2f2f7; /* Light Gray Background */
+    --text-color: #1d1d1f; /* Near Black */
+    --secondary-text-color: #6e6e73; /* Gray Text */
+    
+    --border-color: #d1d1d6;
+    --border-color-light: #e5e5ea; /* Lighter border for internal elements */
+    
+    --background-color: #ffffff;
+    --header-height: 60px;
+    --border-radius: 12px; 
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+    /* Added from acupoints.html for consistency */
+    --acupoint-panel-bg: #f8f9fa;
+    --acupoint-detail-bg: #ffffff;
+    --acupoint-active-bg: var(--primary-color);
+    --acupoint-active-text: var(--primary-color-contrast);
+    --acupoint-hover-bg: #e9ecef;
+    --image-placeholder-bg: #e0e0e0;
+    --search-focus-ring: var(--primary-color-translucent);
+}
+
+body {
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 0;
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* --- Header / Navigation --- */
+.main-header {
+    background-color: rgba(255, 255, 255, 0.9); /* Slightly transparent white */
+    backdrop-filter: blur(10px); /* Frosted glass effect */
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: var(--header-height);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.main-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px; /* Limit content width */
+    margin: 0 auto;
+}
+
+.main-nav .logo {
+    font-size: 1.4em;
+    font-weight: 600;
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.main-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+}
+
+.main-nav ul li {
+    margin-left: 25px;
+}
+
+.main-nav ul li a {
+    text-decoration: none;
+    color: var(--secondary-text-color);
+    font-weight: 500;
+    padding: 5px 0;
+    transition: color 0.2s ease;
+    border-bottom: 2px solid transparent; /* For active state */
+}
+
+.main-nav ul li a:hover {
+    color: var(--primary-color);
+}
+
+.main-nav ul li a.active {
+    color: var(--primary-color);
+    font-weight: 600;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+/* --- Main Content --- */
+.content-wrapper {
+    flex-grow: 1; /* Takes up remaining vertical space */
+    padding: 30px 20px;
+    width: 100%;
+    max-width: 1200px; /* Limit content width */
+    margin: 0 auto; /* Center content */
+    box-sizing: border-box;
+}
+
+.page-container {
+    background-color: var(--background-color);
+    padding: 30px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+    font-size: 2.2em;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+.description {
+    font-size: 1.1em;
+    color: var(--secondary-text-color);
+    margin-bottom: 30px;
+}
+
+/* --- Practice Page Specific --- */
+.practice-container .video-area {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: 20px; /* Space between videos */
+    margin-bottom: 30px;
+}
+
+.video-wrapper {
+    position: relative;
+    width: clamp(300px, 45%, 560px); /* Responsive width */
+    aspect-ratio: 4 / 3; /* Maintain aspect ratio */
+    background-color: #eee;
+    border-radius: var(--border-radius);
+    overflow: hidden; /* Clip corners */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.video-wrapper video,
+.video-wrapper canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Cover the container */
+}
+
+.video-wrapper canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1; /* Canvas on top */
+}
+
+.video-label {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    z-index: 2;
+}
+
+.feedback-panel {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: var(--secondary-color);
+    border-radius: var(--border-radius);
+    min-height: 60px;
+    text-align: center;
+    font-size: 1.1em;
+    color: var(--primary-color);
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+}
+
+.controls {
+    margin-top: 25px;
+    text-align: center;
+}
+
+/* --- Upload Area (Shared by Upload and Herb Identifier) --- */
+.upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 30px;
+    padding: 20px;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--secondary-color);
+}
+
+.file-label {
+    display: inline-block;
+    padding: 12px 25px;
+    background-color: var(--primary-color); /* Make label more prominent */
+    color: white;
+    /* border: 1px solid var(--border-color); */
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-weight: 500;
+    text-align: center;
+}
+
+.file-label:hover {
+    background-color: #0056b3; /* Darker primary color on hover */
+}
+
+.file-input {
+    display: none; /* Hide the default input */
+}
+
+.upload-status,
+.prediction-result { /* Apply similar styling to both status areas */
+    margin-top: 20px;
+    text-align: center;
+    font-weight: 500;
+    min-height: 1.5em;
+    padding: 10px;
+    border-radius: var(--border-radius);
+}
+
+/* --- Herb Identifier Specific --- */
+.herb-identifier-container .upload-area {
+    /* Specific overrides if needed, otherwise uses .upload-area styles */
+    max-width: 500px; /* Limit width of upload box */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.image-preview-wrapper {
+    width: 100%;
+    max-width: 300px; /* Limit preview size */
+    margin-bottom: 15px;
+    display: flex; /* Center image if smaller than wrapper */
+    justify-content: center;
+    align-items: center;
+    min-height: 100px; /* Ensure wrapper has some height even if no image */
+    background-color: #e9ecef; /* Light background for preview area */
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+#imagePreview {
+    display: none; /* Initially hidden */
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: contain; /* Show whole image */
+    border-radius: calc(var(--border-radius) - 2px); /* Slightly smaller radius */
+}
+
+/* --- Buttons --- */
+.button {
+    padding: 12px 25px;
+    font-size: 1em;
+    font-weight: 500;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+    margin: 0 5px;
+}
+
+.button-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.button-primary:hover {
+    background-color: #0056b3;
+}
+
+.button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* --- Footer --- */
+.main-footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 30px; /* Space above footer */
+    color: var(--secondary-text-color);
+    font-size: 0.9em;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--background-color);
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 1.8em;
+    }
+    .description {
+        font-size: 1em;
+    }
+    .main-header {
+        padding: 0 15px; /* Reduce padding on smaller screens */
+        height: auto; /* Allow header to wrap */
+        min-height: var(--header-height);
+    }
+    .main-nav {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px 0; /* Add padding when stacked */
+    }
+    .main-nav .logo {
+        margin-bottom: 10px; /* Space below logo when stacked */
+    }
+    .main-nav ul {
+        /* margin-top: 10px; */ /* Removed, handled by nav padding */
+        flex-wrap: wrap; /* Allow nav items to wrap */
+        gap: 10px 15px; /* Spacing between wrapped items */
+    }
+    .main-nav ul li {
+        margin-left: 0;
+        /* margin-right: 15px; */ /* Use gap instead */
+    }
+    .practice-container .video-area {
+        flex-direction: column;
+        align-items: center;
+    }
+    .video-wrapper {
+        width: 90%; /* Take more width on smaller screens */
+        max-width: 480px;
+    }
+    .content-wrapper {
+        padding: 20px 15px;
+    }
+    .page-container {
+        padding: 20px;
+    }
+    .upload-area {
+        padding: 15px;
+    }
+    .file-label, .button {
+        padding: 10px 20px; /* Slightly smaller buttons/labels */
+    }
+}
+/* static/css/style.css */
+/* ================================== */
+/* ==  悬浮聊天机器人 (Floating Chatbot) == */
+/* ================================== */
+.chatbot-fab{
+    position:fixed;
+    bottom:30px;
+    right:30px;
+    width:60px;
+    height:60px;
+    background-color:var(--primary-color);
+    color:white;
+    border-radius:50%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:1.5em;
+    font-weight:bold;
+    cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);
+    z-index:999;
+    transition:transform .2s ease-in-out}
+.chatbot-fab:hover{transform:scale(1.1)}
+.chatbot-container{position:fixed;
+    bottom:100px;
+    right:30px;
+    width:370px;
+    height:550px;
+    max-height:80vh;
+    background-color:#fff;
+    border-radius:var(--border-radius);
+    box-shadow:0 5px 20px rgba(0,0,0,.25);
+    z-index:1000;display:flex;
+    flex-direction:column;overflow:hidden;
+    transform:translateY(20px) scale(.95);
+    opacity:0;pointer-events:none;
+    transition:opacity .3s ease-in-out,transform .3s ease-in-out}
+.chatbot-container.is-hidden{
+    transform:translateY(20px) scale(.95);
+    opacity:0;pointer-events:none}
+.chatbot-container:not(.is-hidden){
+    transform:translateY(0) scale(1);
+    opacity:1;
+    pointer-events:auto}
+.chatbot-header{display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px 20px;
+    background-color:var(--primary-color);
+    color:white;flex-shrink:0}
+.chatbot-header h3{
+    margin:0;font-size:1.1em}
+#chatbot-close-btn{
+    background:0 0;
+    border:none;
+    color:white;
+    font-size:1.8em;
+    cursor:pointer;
+    padding:0;
+    line-height:1}
+.chat-window{
+    flex-grow:1;
+    padding:20px;
+    overflow-y:auto;
+    background-color:#f9f9f9}
+.chat-message{
+    padding:10px 15px;
+    border-radius:18px;
+    margin-bottom:12px;
+    max-width:85%;
+    line-height:1.5;
+    white-space:pre-wrap}
+.user-message{
+    background-color:var(--primary-color-translucent);
+    color:var(--text-color);
+    margin-left:auto;
+    border-bottom-right-radius:5px}
+.bot-message{
+    background-color:#e9ecef;
+    color:var(--text-color);
+    margin-right:auto;
+    border-bottom-left-radius:5px}
+.chat-form{
+    display:flex;
+    padding:15px;
+    border-top:1px solid var(--border-color);
+    background-color:#fff;
+    flex-shrink:0}
+.chat-form input{
+    flex-grow:1;
+    padding:12px;
+    border:1px solid var(--border-color);
+    border-radius:20px;
+    font-size:1em;
+    margin-right:10px}
+.chat-form input:focus{
+    outline:0;
+    border-color:var(--primary-color)}
+.chat-form button{
+    border-radius:20px;
+    padding:0 20px;
+    font-weight:500}

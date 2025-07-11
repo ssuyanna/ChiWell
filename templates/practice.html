@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Real-time Practice - ChiWell{% endblock %}
+
+{% block content %}
+<div class="page-container practice-container">
+    <h1>Real-time Practice</h1>
+    <p class="description">Please allow browser access to the camera and follow the standard video to practice.</p>
+
+    <div class="video-area">
+        <div class="video-wrapper user-video">
+            <video id="webcamVideo" playsinline autoplay muted></video>
+            <canvas id="outputCanvas"></canvas>
+            <div class="video-label">Your Pose</div>
+        </div>
+        <div class="video-wrapper standard-video">
+             <video id="standardVideo" controls>
+                 <!-- Use url_for to generate video path -->
+                 <source src="{{ url_for('static', filename='videos/baduanjin.mp4') }}" type="video/mp4">
+                 Your browser does not support the HTML video tag.
+             </video>
+             <div class="video-label">Standard Pose</div>
+        </div>
+    </div>
+
+    <div id="feedback" class="feedback-panel">
+        Please click 'Start Detection'...
+    </div>
+
+    <div class="controls">
+        <button id="startBtn" class="button button-primary">Start Detection</button>
+        <button id="stopBtn" class="button" disabled>Stop Detection</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<!-- If there is specific JS for the practice page, you can include it here -->
+<!-- <script src="{{ url_for('static', filename='js/practice.js') }}"></script> -->
+{% endblock %}

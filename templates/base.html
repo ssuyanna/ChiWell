@@ -1,0 +1,66 @@
+{# filepath: /Users/suya/Desktop/Baduanjin/templates/base.html #}
+<!DOCTYPE html> {# This should be the first line, or a comment like this one #}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ChiWell - Baduanjin Assistant{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_styles %}{% endblock %}
+</head>
+<body>
+    <header class="main-header">
+        <nav class="main-nav">
+            <a href="{{ url_for('index') }}" class="logo">ChiWell</a>
+            <ul>
+                <li><a href="{{ url_for('practice_page') }}" class="{{ 'active' if active_page == 'practice' }}">Real-time Practice</a></li>
+                <li><a href="{{ url_for('upload_page') }}" class="{{ 'active' if active_page == 'upload' }}">Upload Analysis</a></li>
+                <li><a href="{{ url_for('herb_identifier_page') }}" class="{{ 'active' if active_page == 'herb_identifier' }}">Herb Identifier</a></li>
+                <li><a href="{{ url_for('acupoints_page') }}" class="{{ 'active' if active_page == 'acupoints' }}">Acupoint Lookup</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="content-wrapper">
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="main-footer">
+        <p>&copy; <span id="currentYear"></span> ChiWell. All rights reserved.</p>
+    </footer>
+
+    {# General scripts, like MediaPipe if needed globally, or specific page scripts #}
+    {# MediaPipe Pose (used by practice page) - Consider loading it only on the practice page if large #}
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // Ensure this script runs after the span exists
+        document.addEventListener('DOMContentLoaded', function() {
+            const yearSpan = document.getElementById('currentYear');
+            if (yearSpan) {
+                yearSpan.textContent = new Date().getFullYear();
+            }
+        });
+    </script>
+
+    {# [新增✨] 在这里粘贴下面的代码 #}
+    <div id="chatbot-fab" class="chatbot-fab">
+        <span>AI</span>
+    </div>
+    <div id="chatbot-container" class="chatbot-container is-hidden">
+        <div class="chatbot-header">
+            <h3>中医小助手</h3>
+            <button id="chatbot-close-btn">&times;</button>
+        </div>
+        <div id="chat-window" class="chat-window"></div>
+        <div class="chat-form">
+            <input type="text" id="chat-input" placeholder="问任何关于中医养生的问题...">
+            <button id="send-btn" class="button-primary">发送</button>
+        </div>
+    </div>
+    {# [新增结束] #}
+    {% block body_scripts %}{% endblock %}
+</body>
+</html>

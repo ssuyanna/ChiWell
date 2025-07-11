@@ -1,0 +1,118 @@
+{# filepath: /Users/suya/Desktop/Baduanjin/templates/upload.html #}
+{% extends "base.html" %}
+
+{% block title %}Upload Analysis - ChiWell{% endblock %}
+
+{% block content %}
+<div class="page-container upload-container">
+    <h1>Upload Video for Action Analysis</h1>
+    <p class="description">
+        Upload a video of your Baduanjin practice. The system will provide a comprehensive analysis and traditional Chinese medicine-based wellness advice based on your movements.
+    </p>
+
+    <div class="upload-form">
+        <label for="videoUpload" class="file-label">Select Action Video File</label>
+        <input type="file" id="videoUpload" accept="video/*" class="file-input">
+        <button id="actionUploadBtn" class="button button-primary">Upload & Analyze Action</button>
+    </div>
+
+    {# 用于显示上传状态和错误 #}
+    <div id="actionUploadStatus" class="upload-status" style="margin-top: 20px;"></div>
+
+    {# 这是用来显示 Gemini 分析报告的容器 #}
+    <div id="resultText" class="prediction-result"
+         style="margin-top: 20px; text-align: left; font-size: 1.1em; padding: 15px; border: 1px solid #ccc; border-radius: 8px; background-color: #fdfdfd; white-space: pre-wrap;">
+        </div>
+</div>
+{% endblock %}
+
+
+{% block body_scripts %}
+<script type = "text/javascript">
+document.addEventListener('DOMContentLoaded', () => {
+    // --- 获取页面上的 HTML 元素 ---
+    const videoUploadInput = document.getElementById('videoUpload');
+    const actionUploadBtn = document.getElementById('actionUploadBtn');
+    const actionUploadStatusElement = document.getElementById('actionUploadStatus');
+    const fileLabel = document.querySelector('.upload-form .file-label');
+    const resultTextDiv = document.getElementById('resultText');
+
+    // 检查核心 UI 元素是否存在，防止脚本崩溃
+    if (!videoUploadInput || !actionUploadBtn || !actionUploadStatusElement || !fileLabel || !resultTextDiv) {
+        console.error("SCRIPT ERROR (Upload Page): One or more required UI elements are missing!");
+        if(actionUploadStatusElement) actionUploadStatusElement.textContent = "Page Error: UI elements missing. Check HTML IDs.";
+        return; // 终止脚本，因为没有可操作的元素
+    }
+
+    // --- 页面初始化状态 ---
+    actionUploadBtn.disabled = true;
+    resultTextDiv.style.display = 'none';
+
+    // --- 监听文件选择事件 ---
+    videoUploadInput.addEventListener('change', () => {
+        if (videoUploadInput.files.length > 0) {
+            fileLabel.textContent = videoUploadInput.files[0].name;
+            actionUploadBtn.disabled = false;
+            actionUploadStatusElement.textContent = '';
+            resultTextDiv.style.display = 'none';
+        } else {
+            fileLabel.textContent = "Select Action Video File";
+            actionUploadBtn.disabled = true;
+        }
+    });
+
+    // --- 定义上传和分析视频的异步函数 ---
+    async function uploadActionVideo() {
+        console.log("SCRIPT (Action Upload): uploadActionVideo called.");
+        const file = videoUploadInput.files[0];
+        if (!file) {
+            actionUploadStatusElement.textContent = "Please select a video file first.";
+            actionUploadStatusElement.style.color = 'red';
+            return;
+        }
+
+        // --- 更新UI，告知用户正在处理 ---
+        actionUploadStatusElement.textContent = "Uploading and analyzing, this may take a moment... 🤖";
+        actionUploadStatusElement.style.color = 'var(--primary-color)';
+        actionUploadBtn.disabled = true;
+        fileLabel.style.opacity = '0.6';
+        resultTextDiv.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('video', file);
+
+        try {
+            // --- 发送请求到后端 /predict_action ---
+            const response = await fetch('/predict_action', { method: 'POST', body: formData });
+            const result = await response.json();
+
+            if (response.ok) {
+                // --- 请求成功处理 ---
+                actionUploadStatusElement.textContent = `Analysis Complete! ${result.message || 'Success.'}`;
+                actionUploadStatusElement.style.color = 'green';
+                resultTextDiv.textContent = result.report; // 使用 textContent 可以安全地显示文本并保留换行
+                resultTextDiv.style.display = 'block';
+
+            } else {
+                // --- 请求失败处理 ---
+                actionUploadStatusElement.textContent = `Error: ${result.error || `Server error (${response.status})`}`;
+                actionUploadStatusElement.style.color = 'red';
+            }
+        } catch (error) {
+            // --- 网络或解析错误处理 ---
+            console.error("SCRIPT ERROR (Action Upload): Fetch error or JSON parsing error:", error);
+            actionUploadStatusElement.textContent = "An error occurred during upload or analysis. Please check the browser console.";
+            actionUploadStatusElement.style.color = 'red';
+        } finally {
+            // --- 无论成功或失败，最后都恢复UI状态 ---
+            actionUploadBtn.disabled = false;
+            fileLabel.style.opacity = '1';
+            console.log("SCRIPT (Action Upload): Action video processing finished.");
+        }
+    }
+
+    // --- 为上传按钮绑定点击事件 ---
+    actionUploadBtn.addEventListener('click', uploadActionVideo);
+});
+</script>
+{% endblock %}
