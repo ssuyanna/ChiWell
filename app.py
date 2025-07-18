@@ -559,7 +559,7 @@ def ask_chatbot():
         # 我们使用 MessagesPlaceholder 来为历史消息创建一个“占位符”
         prompt = ChatPromptTemplate.from_messages([
             ("system",
-             "你是一位精通中医养生智慧、态度友善的健康助手。请根据上下文直接回答用户提出的最新问题。请用清晰、易懂、鼓励性的语言进行交流。"),
+             "你是一位精通中医养生智慧、态度友善的健康助手。请根据上下文直接回答用户提出的最新问题。请用清晰、易懂、鼓励性的语言进行交流。请使用用户提问的语言回答问题（例如：用户使用英文提问，使用英文回答。用户使用中文提问，使用中文回答）。"),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
         ])
