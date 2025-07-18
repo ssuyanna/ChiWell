@@ -15,6 +15,8 @@ import torch.nn as nn
 
 # --- 八段锦动作识别相关导入 ---
 import google.generativeai as genai
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -23,8 +25,7 @@ from model import LSTMClassifier  # 从 model.py 导入
 # --- 结束导入 ---
 from flask import send_file  # 新增导入
 
-#UPLOAD_FOLDER = 'uploads'
-UPLOAD_FOLDER = '/tmp/uploads'
+UPLOAD_FOLDER = 'uploads'
 HERB_IMAGE_FOLDER = os.path.join(UPLOAD_FOLDER, 'herb_images')
 ACTION_VIDEO_FOLDER = os.path.join(UPLOAD_FOLDER, 'action_videos')  # 存放上传的动作视频
 ACTION_JSON_FOLDER = os.path.join(UPLOAD_FOLDER, 'action_json')  # 存放提取的姿态JSON
@@ -54,50 +55,34 @@ os.environ["HTTP_PROXY"] = "http://127.0.0.1:7890"
 os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7890"
 
 
+import timm                                       # ← 新增
+from torchvision import transforms, models        # 旧行保留
+
+# ……
+
+# ---------- herb model ----------
+MEDICINE_MODEL_PATH = "medicine_model.pth"
+CLASS_NAMES_PATH = "class_names.json"
 def load_herb_model():
-    global herb_model, herb_class_names, herb_transform
-    print("--- Loading Herb Identification Model ---")
-    try:
-        if not os.path.exists(MEDICINE_MODEL_PATH):
-            raise FileNotFoundError(f"Model file not found: {MEDICINE_MODEL_PATH}")
-        if not os.path.exists(CLASS_NAMES_PATH):
-            raise FileNotFoundError(f"Class names file not found: {CLASS_NAMES_PATH}")
+    with open(CLASS_NAMES_PATH, encoding="utf-8") as f:
+        class_names = json.load(f)
+    model = timm.create_model("convnext_tiny.fb_in22k",
+                              pretrained=False,
+                              num_classes=len(class_names))
+    ckpt = torch.load(MEDICINE_MODEL_PATH, map_location=herb_device)
+    model.load_state_dict(ckpt.get("state", ckpt), strict=False)
+    model.to(herb_device).eval()
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485,0.456,0.406],
+                             [0.229,0.224,0.225]),
+    ])
+    return model, transform, class_names
 
-        with open(CLASS_NAMES_PATH, "r", encoding="utf-8") as f:
-            herb_class_names = json.load(f)
-        num_classes_herb = len(herb_class_names)  # Renamed to avoid conflict
-        if num_classes_herb == 0:
-            raise ValueError("Class names file is empty or invalid.")
-        print(f"Loaded {num_classes_herb} herb class names.")
-
-        herb_model = models.resnet18(weights=None)
-        herb_model.fc = nn.Linear(herb_model.fc.in_features, num_classes_herb)
-        print("Herb model structure created (ResNet18).")
-
-        herb_model.load_state_dict(torch.load(MEDICINE_MODEL_PATH, map_location=herb_device))
-        herb_model = herb_model.to(herb_device)
-        herb_model.eval()
-        print(f"Herb identification model weights loaded successfully onto {herb_device}.")
-
-        herb_transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor()
-        ])
-        print("Herb image transform defined (Resize, ToTensor only).")
-        print("--- Herb Model Loading Complete ---")
-
-    except FileNotFoundError as e:
-        print(f"[ERROR] Loading herb model failed: {e}. Herb identification feature will be disabled.")
-        herb_model = None
-    except Exception as e:
-        import traceback
-        print(f"[ERROR] An unexpected error occurred during herb model loading: {type(e).__name__} - {e}")
-        print(traceback.format_exc())
-        herb_model = None
-        print("--- Herb Model Loading Failed ---")
-
-
-load_herb_model()
+# !!! 别忘了把返回值赋给全局变量
+herb_model, herb_transform, herb_class_names = load_herb_model()
 
 # --- 八段锦动作识别模型加载 ---
 ACTION_MODEL_PATH = "./output/model.pt"  # 你的 LSTM 模型路径
@@ -544,45 +529,68 @@ def get_acupoint_image(point_id):
 # def herb_identifier_page():
 #     return render_template('herb_identifier.html', active_page='herb_identifier')
 
-# [新增✨] 全新的、纯 API 调用的聊天机器人接口
+# [新增] 全新的、纯 API 调用的聊天机器人接口
 @app.route('/ask_chatbot', methods=['POST'])
 def ask_chatbot():
     """
     处理来自前端悬浮聊天窗口的请求。
-    不使用 RAG，直接调用 Gemini API。
+    新增了对聊天记录的处理，实现了记忆功能。
     """
-    # 1. 从前端请求中获取用户的问题
+    # 1. 从前端请求中获取用户的问题和聊天记录
     data = request.get_json()
     question = data.get("question")
+    # history 是一个列表，包含之前的对话，例如:
+    # [{"role": "user", "content": "你好"}, {"role": "ai", "content": "你好！"}]
+    history = data.get("history", [])
+
     if not question:
         return jsonify({"error": "问题不能为空"}), 400
 
     try:
-        # 2. 初始化 Gemini 2.5 Flash 模型
-        # 使用你指定的最新模型
+        # 2. 初始化 Gemini 2.5 Flash 模型 (与之前相同)
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             google_api_key=os.getenv("GEMINI_API_KEY"),
-            temperature=0.6, # 可以设置一个适中的温度，让回答既专业又带一些人情味
+            temperature=0.6,
             convert_system_message_to_human=True
         )
 
-        # 3. 创建一个简单的 Prompt，定义 AI 的角色和任务
-        prompt = PromptTemplate.from_template("""
-你是一位精通中医养生智慧、态度友善的健康助手。请直接回答用户提出的问题。请用清晰、易懂、鼓励性的语言进行交流。
+        # 3. [修改] 创建一个支持聊天记录的 Prompt
+        # 我们使用 MessagesPlaceholder 来为历史消息创建一个“占位符”
+        prompt = ChatPromptTemplate.from_messages([
+            ("system",
+             "你是一位精通中医养生智慧、态度友善的健康助手。请根据上下文直接回答用户提出的最新问题。请用清晰、易懂、鼓励性的语言进行交流。"),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{question}"),
+        ])
 
-用户问题: {question}
-
-你的回答:
-""")
-
-        # 4. 构建并执行最简单的调用链: Prompt -> LLM -> Parser
+        # 4. 构建并执行调用链 (与之前类似)
         chain = prompt | llm | StrOutputParser()
-        # #invoke 的作用是执行这个调用链，将输入（问题）传递进去，获取最终输出
-        answer = chain.invoke({"question": question})
 
-        # 5. 将 AI 的回答以 JSON 格式返回给前端
-        return jsonify({"answer": answer})
+        # 5. [新增] 将前端传来的 history 转换成 LangChain 能理解的格式
+        chat_history_for_chain = []
+        for msg in history:
+            if msg.get("role") == "user":
+                chat_history_for_chain.append(HumanMessage(content=msg.get("content")))
+            elif msg.get("role") == "ai":
+                chat_history_for_chain.append(AIMessage(content=msg.get("content")))
+
+        # 6. [修改] 调用链，并传入格式化后的聊天记录和新问题
+        answer = chain.invoke({
+            "chat_history": chat_history_for_chain,
+            "question": question
+        })
+
+        # 7. [新增] 更新聊天记录，并确保它不超过10条
+        history.append({"role": "user", "content": question})
+        history.append({"role": "ai", "content": answer})
+
+        # 如果历史记录超过10条，就只保留最新的10条
+        if len(history) > 10:
+            history = history[-10:]
+
+        # 8. [修改] 将 AI 的回答和更新后的历史记录一并返回给前端
+        return jsonify({"answer": answer, "history": history})
 
     except Exception as e:
         import traceback
@@ -591,6 +599,6 @@ def ask_chatbot():
         return jsonify({"error": "调用AI服务时发生错误。"}), 500
 
 
-#if __name__ == '__main__':
-#    print("Starting Flask application...")
-#    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)
+if __name__ == '__main__':
+    print("Starting Flask application...")
+    app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)

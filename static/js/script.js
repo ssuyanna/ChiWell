@@ -239,38 +239,22 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
 
             async function predictionLoop() {
-                // Add log here
-                // console.log("SCRIPT (Practice): predictionLoop - Top. isDetecting:", isDetecting, "Video ReadyState:", webcamVideoElement?.readyState);
-
                 if (!isDetecting || !webcamVideoElement || webcamVideoElement.paused || webcamVideoElement.ended) {
-                    // Add log here
-                    console.log("SCRIPT (Practice): predictionLoop - Condition met, stopping detection. isDetecting:", isDetecting, "Paused:", webcamVideoElement?.paused, "Ended:", webcamVideoElement?.ended);
-                    if (isDetecting) stopDetection(); // Only call stop if it wasn't already called
+                    if (isDetecting) stopDetection();
                     return;
                 }
-
-                // Ensure readyState is high enough (>= 2 means HAVE_CURRENT_DATA)
                 if (pose && webcamVideoElement.readyState >= 2) {
                     try {
-                        // console.log("SCRIPT (Practice): predictionLoop - Calling pose.send()");
                         await pose.send({ image: webcamVideoElement });
-                        // console.log("SCRIPT (Practice): predictionLoop - pose.send() completed.");
                     }
                     catch (error) {
                         console.error("SCRIPT ERROR (Practice): Error sending frame to MediaPipe:", error);
-                        stopDetection(); // Error likely triggers stop
-                        return; // Stop the loop on error
+                        stopDetection();
+                        return;
                     }
-                } else {
-                     // console.log("SCRIPT (Practice): predictionLoop - Skipping pose.send(). Pose available:", !!pose, "Video ReadyState:", webcamVideoElement?.readyState);
                 }
-
-                // Request next frame ONLY if still detecting
                 if (isDetecting) {
-                    // console.log("SCRIPT (Practice): predictionLoop - Requesting next frame.");
                     animationFrameId = requestAnimationFrame(predictionLoop);
-                } else {
-                    console.log("SCRIPT (Practice): predictionLoop - Detection stopped, not requesting next frame.");
                 }
             }
 
@@ -283,10 +267,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                 if (results.poseLandmarks) {
                     const landmarks = results.poseLandmarks;
-
-                    // ✅ 先对比，拿到 wrongAnglePoints
                     comparePose(landmarks);
-
                     const BODY_KEYPOINTS = [11,12,13,14,15,16,23,24,25,26,27,28];
                     const wrongSet = window.wrongAnglePoints || new Set();
 
@@ -310,7 +291,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
                         ), { color: '#AAAAAA', lineWidth: 2 });
                     }
                 }
-
                 canvasCtx.restore();
             }
 
@@ -327,8 +307,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 let feedbackMessages = [];
                 let score = 100;
                 const penalty = 5;
-
-                // ⬇️ 收集错误角度点
                 window.wrongAnglePoints = new Set();
 
                 for (const angleName in ANGLES_TO_COMPARE) {
@@ -356,7 +334,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     }
                 }
 
-                // ✅ 改进后的相对位置判断：按 torso 高度归一化
                 const relativePositionRules = [
                     { userIdx1: 15, userIdx2: 11, stdIdx1: 15, stdIdx2: 11, axis: 'y', part: 'left hand height' },
                     { userIdx1: 16, userIdx2: 12, stdIdx1: 16, stdIdx2: 12, axis: 'y', part: 'right hand height' },
@@ -409,12 +386,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
             stopBtn.addEventListener('click', stopDetection);
 
             console.log("SCRIPT (Practice): Running initialization.");
-            // Initialize Pose and THEN load data
-            if (initializePose(onPoseResults)) { // Pass the results handler as callback
+            if (initializePose(onPoseResults)) {
                 loadStandardData();
             } else {
                 startBtn.disabled = true;
-                feedbackElement.textContent = "Error: Pose model initialization failed."; // Translated
+                feedbackElement.textContent = "Error: Pose model initialization failed.";
             }
         }
     } else {
@@ -430,7 +406,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         const videoUploadInput = document.getElementById('videoUpload');
         const uploadBtn = document.getElementById('uploadBtn');
         const uploadStatusElement = document.getElementById('uploadStatus');
-        const fileLabel = uploadPageContainer.querySelector('.file-label'); // Scope label to this container
+        const fileLabel = uploadPageContainer.querySelector('.file-label');
 
         if (!videoUploadInput || !uploadBtn || !uploadStatusElement || !fileLabel) {
             console.error("SCRIPT ERROR: One or more required elements for the upload page are missing!");
@@ -442,17 +418,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     fileLabel.textContent = videoUploadInput.files[0].name;
                     uploadBtn.disabled = false; uploadStatusElement.textContent = '';
                 } else {
-                    fileLabel.textContent = "Select video file"; uploadBtn.disabled = true; // Translated
+                    fileLabel.textContent = "Select video file"; uploadBtn.disabled = true;
                 }
             });
-            uploadBtn.disabled = true; // Initially disable
+            uploadBtn.disabled = true;
 
             async function uploadVideo() {
                 console.log("SCRIPT (Upload): uploadVideo called.");
                 const file = videoUploadInput.files[0];
-                if (!file) { uploadStatusElement.textContent = "Please select a video file first."; uploadStatusElement.style.color = 'red'; return; } // Translated
+                if (!file) { uploadStatusElement.textContent = "Please select a video file first."; uploadStatusElement.style.color = 'red'; return; }
 
-                uploadStatusElement.textContent = "Uploading video..."; uploadStatusElement.style.color = 'var(--primary-color)'; // Translated
+                uploadStatusElement.textContent = "Uploading video..."; uploadStatusElement.style.color = 'var(--primary-color)';
                 uploadBtn.disabled = true; fileLabel.style.opacity = '0.6';
                 const formData = new FormData(); formData.append('video', file);
 
@@ -460,16 +436,16 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     const response = await fetch('/upload', { method: 'POST', body: formData });
                     const result = await response.json();
                     if (response.ok) {
-                        uploadStatusElement.textContent = `Upload successful: ${result.message || 'Video received.'}`; uploadStatusElement.style.color = 'green'; // Translated
-                        videoUploadInput.value = ''; fileLabel.textContent = "Select video file"; uploadBtn.disabled = true; // Translated
+                        uploadStatusElement.textContent = `Upload successful: ${result.message || 'Video received.'}`; uploadStatusElement.style.color = 'green';
+                        videoUploadInput.value = ''; fileLabel.textContent = "Select video file"; uploadBtn.disabled = true;
                     } else {
-                        uploadStatusElement.textContent = `Upload failed: ${result.error || 'Server error.'}`; uploadStatusElement.style.color = 'red'; // Translated
-                        uploadBtn.disabled = false; // Allow retry
+                        uploadStatusElement.textContent = `Upload failed: ${result.error || 'Server error.'}`; uploadStatusElement.style.color = 'red';
+                        uploadBtn.disabled = false;
                     }
                 } catch (error) {
                     console.error("SCRIPT ERROR (Upload): Fetch error:", error);
-                    uploadStatusElement.textContent = "Upload error, please check network."; uploadStatusElement.style.color = 'red'; // Translated
-                    uploadBtn.disabled = false; // Allow retry
+                    uploadStatusElement.textContent = "Upload error, please check network."; uploadStatusElement.style.color = 'red';
+                    uploadBtn.disabled = false;
                 } finally {
                     fileLabel.style.opacity = '1';
                     console.log("SCRIPT (Upload): Upload process finished.");
@@ -486,109 +462,89 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // ==================================================
     const herbPageContainer = document.querySelector('.herb-identifier-container');
     if (herbPageContainer) {
-        console.log("SCRIPT: Herb identifier page container FOUND. Setting up logic..."); // Log 2
+        console.log("SCRIPT: Herb identifier page container FOUND. Setting up logic...");
         const imageUploadInput = document.getElementById('herbImageUpload');
         const predictBtn = document.getElementById('predictBtn');
         const predictionResultElement = document.getElementById('predictionResult');
         const imagePreview = document.getElementById('imagePreview');
-        const fileLabel = herbPageContainer.querySelector('.file-label'); // Scope label to this container
+        const fileLabel = herbPageContainer.querySelector('.file-label');
 
         if (!imageUploadInput || !predictBtn || !predictionResultElement || !imagePreview || !fileLabel) {
             console.error("SCRIPT ERROR: One or more required elements for the herb identifier page are missing!");
         } else {
             console.log("SCRIPT: All herb identifier page elements found.");
 
-            // --- Image Preview Logic ---
             imageUploadInput.addEventListener('change', function() {
-                console.log("SCRIPT (Herb): Image input changed."); // Log 3
                 const file = this.files[0];
                 if (file) {
                     if (!file.type.startsWith('image/')){
-                         predictionResultElement.textContent = "Please select an image file."; predictionResultElement.style.color = 'red'; // Translated
+                         predictionResultElement.textContent = "Please select an image file."; predictionResultElement.style.color = 'red';
                          imagePreview.style.display = 'none'; imagePreview.src = '#';
-                         fileLabel.textContent = "Select image file"; predictBtn.disabled = true; // Translated
+                         fileLabel.textContent = "Select image file"; predictBtn.disabled = true;
                          return;
                     }
                     const reader = new FileReader();
                     reader.onload = function(e) {
                         imagePreview.src = e.target.result;
                         imagePreview.style.display = 'block';
-                        console.log("SCRIPT (Herb): Image preview updated."); // Log 4
                     }
                     reader.readAsDataURL(file);
                     fileLabel.textContent = file.name;
-                    predictBtn.disabled = false; // Enable button
+                    predictBtn.disabled = false;
                     predictionResultElement.textContent = ''; predictionResultElement.style.color = 'inherit';
-                    console.log("SCRIPT (Herb): Predict button enabled."); // Log 5
                 } else {
                     imagePreview.style.display = 'none'; imagePreview.src = '#';
-                    fileLabel.textContent = "Select image file"; // Translated
-                    predictBtn.disabled = true; // Disable button
-                    console.log("SCRIPT (Herb): Predict button disabled (no file)."); // Log 6
+                    fileLabel.textContent = "Select image file";
+                    predictBtn.disabled = true;
                 }
             });
 
-            // --- Prediction Logic ---
             async function predictHerb() {
-                console.log("SCRIPT (Herb): predictHerb function CALLED."); // Log 7
                 const file = imageUploadInput.files[0];
                 if (!file) {
-                    predictionResultElement.textContent = "Please select an image first."; predictionResultElement.style.color = 'red'; // Translated
+                    predictionResultElement.textContent = "Please select an image first."; predictionResultElement.style.color = 'red';
                     return;
                 }
 
-                predictionResultElement.textContent = "Identifying, please wait..."; predictionResultElement.style.color = 'var(--primary-color)'; // Translated
+                predictionResultElement.textContent = "Identifying, please wait..."; predictionResultElement.style.color = 'var(--primary-color)';
                 predictBtn.disabled = true; fileLabel.style.opacity = '0.6';
-                console.log("SCRIPT (Herb): Starting herb prediction fetch...");
 
                 const formData = new FormData(); formData.append('image', file);
 
                 try {
-                    const response = await fetch('/predict_herb', { method: 'POST', body: formData }); // <<< THIS is the expected fetch
-                    console.log("SCRIPT (Herb): Prediction fetch response status:", response.status);
+                    const response = await fetch('/predict_herb', { method: 'POST', body: formData });
                     const result = await response.json();
-                    console.log("SCRIPT (Herb): Prediction response data:", result);
                     if (response.ok) {
-                        // Check if result.confidence exists and is not empty/null/undefined before adding it
                         predictionResultElement.innerHTML = `Identification result: <strong>${result.prediction}</strong>${result.confidence ? `<br>(Confidence: ${result.confidence})` : ''}`;
                         predictionResultElement.style.color = 'green';
                     } else {
-                        predictionResultElement.textContent = `Identification failed: ${result.error || `Server error (${response.status})`}`; // Translated
+                        predictionResultElement.textContent = `Identification failed: ${result.error || `Server error (${response.status})`}`;
                         predictionResultElement.style.color = 'red';
                     }
                 } catch (error) {
                     console.error("SCRIPT ERROR (Herb): Fetch error:", error);
-                    predictionResultElement.textContent = "Identification request error, please check network."; // Translated
+                    predictionResultElement.textContent = "Identification request error, please check network.";
                     predictionResultElement.style.color = 'red';
                 } finally {
-                    predictBtn.disabled = false; // Re-enable button
+                    predictBtn.disabled = false;
                     fileLabel.style.opacity = '1';
-                    console.log("SCRIPT (Herb): Herb prediction process finished.");
                 }
             }
-
-            // --- Event Listener ---
             if (predictBtn) {
                  predictBtn.addEventListener('click', predictHerb);
-                 console.log("SCRIPT (Herb): Event listener added to predict button."); // Log 8
-            } else {
-                 console.error("SCRIPT ERROR (Herb): Predict button not found!");
             }
         }
     } else {
-        console.log("SCRIPT: Herb identifier page container NOT FOUND. Skipping logic setup."); // Log 9
+        console.log("SCRIPT: Herb identifier page container NOT FOUND. Skipping logic setup.");
     }
     console.log("SCRIPT: End of DOMContentLoaded execution.");
 });
-// End of DOMContentLoaded listener
-// static/js/script.js
 
-// ==============================================
-// ==  全局悬浮聊天机器人 (Global Floating Chatbot)  ==
-// ==============================================
-// 确保在 DOM 加载完成后再执行
+
+// ========================================================
+// ==  全局悬浮聊天机器人 (Global Floating Chatbot) - 已修改  ==
+// ========================================================
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. 获取所有新添加的聊天组件
     const chatbotFab = document.getElementById('chatbot-fab');
     const chatbotContainer = document.getElementById('chatbot-container');
     const closeBtn = document.getElementById('chatbot-close-btn');
@@ -596,10 +552,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-btn');
 
-    // 如果页面上没有这些组件，则不执行任何操作 (这是为了代码的健壮性)
     if (!chatbotFab || !chatbotContainer) {
         return;
     }
+
+    // --- [新增 ✨] 创建一个变量来存储聊天记录 ---
+    let chatHistory = [];
 
     // --- 事件监听：控制聊天窗口的显示/隐藏 ---
     chatbotFab.addEventListener('click', () => {
@@ -634,10 +592,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const thinkingMessage = addMessage('...', 'bot');
 
         try {
+            // --- [修改 ✨] 发送请求时，带上当前的聊天记录 ---
             const response = await fetch('/ask_chatbot', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: userQuestion }),
+                body: JSON.stringify({
+                    question: userQuestion,
+                    history: chatHistory // 将历史记录发送给后端
+                }),
             });
 
             chatWindow.removeChild(thinkingMessage);
@@ -645,6 +607,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (response.ok) {
                 addMessage(result.answer, 'bot');
+                // --- [新增 ✨] 用后端返回的最新历史记录，更新前端的变量 ---
+                chatHistory = result.history;
             } else {
                 addMessage(`出错了: ${result.error || '未知错误'}`, 'bot');
             }

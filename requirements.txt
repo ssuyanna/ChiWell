@@ -7,3 +7,4 @@ Pillow
 google-generativeai
 langchain-google-genai
 gunicorn
+timm
