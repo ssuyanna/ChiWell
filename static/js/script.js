@@ -610,11 +610,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // --- [新增 ✨] 用后端返回的最新历史记录，更新前端的变量 ---
                 chatHistory = result.history;
             } else {
-                addMessage(`出错了: ${result.error || '未知错误'}`, 'bot');
+                addMessage(`Error: ${result.error || 'Unknown Error'}`, 'bot');
             }
         } catch (error) {
             chatWindow.removeChild(thinkingMessage);
-            addMessage(`网络请求失败，请检查后端服务是否正常运行。`, 'bot');
+            addMessage(`Network request failed, please check if the back-end service is running normally.`, 'bot');
             console.error('Fetch error:', error);
         } finally {
             sendBtn.disabled = false;
@@ -631,5 +631,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 初始欢迎语
-    addMessage('你好！我是你的专属中医健康助手，有什么可以帮到你吗？', 'bot');
+    addMessage('Hello! I am your dedicated TCM health assistant, how can I help you?', 'bot');
 });

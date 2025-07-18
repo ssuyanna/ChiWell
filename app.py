@@ -544,7 +544,7 @@ def ask_chatbot():
     history = data.get("history", [])
 
     if not question:
-        return jsonify({"error": "问题不能为空"}), 400
+        return jsonify({"error": "Question cannot be empty."}), 400
 
     try:
         # 2. 初始化 Gemini 2.5 Flash 模型 (与之前相同)
@@ -596,7 +596,7 @@ def ask_chatbot():
         import traceback
         print(f"[ERROR] Chatbot API failed: {e}")
         print(traceback.format_exc())
-        return jsonify({"error": "调用AI服务时发生错误。"}), 500
+        return jsonify({"error": "An error occurred while calling the AI service."}), 500
 
 
 if __name__ == '__main__':
