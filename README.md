@@ -3,7 +3,7 @@ title: ChiWell
 emoji: 🍃
 colorFrom: green
 colorTo: blue
-sdk: flask
+sdk: docker
 pinned: false
 ---
 # ChiWell🌿: An AI-Powered TCM Wellness Platform
