@@ -1,3 +1,11 @@
+---
+title: ChiWell
+emoji: 🍃
+colorFrom: green
+colorTo: blue
+sdk: flask
+pinned: false
+---
 # ChiWell🌿: An AI-Powered TCM Wellness Platform
 
 ## About The Project
